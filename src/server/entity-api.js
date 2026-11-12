@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { connectDb } from '../db/index.js';
 import { MODELS, Event, Registration, serialize } from '../db/models.js';
+import { invalidateEventCache } from './cache.js';
 import { notifyTicketCreated } from './mailer.js';
 import { isAdmin, requireAdmin, requireUser } from './session.js';
 
@@ -377,6 +378,7 @@ export async function createEntity(entity, data, user) {
   try {
     const doc = await model.create(payload);
     const created = serialize(doc);
+    if (entity === 'Event') await invalidateEventCache();
     if (entity === 'Registration') {
       // Ticket email: fire-and-forget, never blocks or fails registration.
       // (CSV bulk imports use bulkCreate below, which intentionally skips it.)
@@ -461,6 +463,9 @@ export async function bulkCreate(entity, items, user) {
     });
 
     return results;
+  } finally {
+    // Partial imports still changed the collection.
+    if (entity === 'Event') await invalidateEventCache();
   }
 }
 
@@ -476,6 +481,7 @@ export async function updateEntity(entity, id, data, user) {
       runValidators: true,
     });
     if (!doc) throw new ApiError(404, `${entity} not found.`);
+    if (entity === 'Event') await invalidateEventCache();
     return serialize(doc);
   } catch (error) {
     rethrow(error);
@@ -489,6 +495,7 @@ export async function deleteEntity(entity, id, user) {
   try {
     const doc = await model.findByIdAndDelete(id);
     if (!doc) throw new ApiError(404, `${entity} not found.`);
+    if (entity === 'Event') await invalidateEventCache();
     return { id };
   } catch (error) {
     rethrow(error);
@@ -503,6 +510,7 @@ export async function deleteManyEntities(entity, filter, user) {
   await connectDb();
   try {
     const result = await model.deleteMany(condition);
+    if (entity === 'Event') await invalidateEventCache();
     return { deleted: result.deletedCount };
   } catch (error) {
     rethrow(error);
