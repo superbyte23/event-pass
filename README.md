@@ -83,7 +83,7 @@ npm run dev                  # http://localhost:3000
 | `BLOB_READ_WRITE_TOKEN` | Vercel Blob token (auto-provided on Vercel; locally uploads fall back to `public/uploads/`) |
 | `APP_URL` | Public app URL used for links inside emails (defaults to `NEXTAUTH_URL`, then localhost) |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` / `MAIL_FROM` | Outgoing mail for ticket delivery (provider-agnostic SMTP). **Optional:** when `SMTP_HOST` is unset, no mail is sent and the app behaves exactly as without it |
-| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` (or `KV_REST_API_URL` / `KV_REST_API_TOKEN`) | **Optional** Redis over REST, for rate limiting (`/api/guest-tickets`, guest registration, check-in) and a 60s public event-list cache. Unset = both disabled, app behaves as before. A Redis outage is treated as a cache miss, never as an error |
+| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` (or `KV_REST_API_URL` / `KV_REST_API_TOKEN`), **or** `REDIS_URL` | **Optional** Redis, for rate limiting (`/api/guest-tickets`, guest registration, check-in) and a 60s public event-list cache. REST (Upstash) is preferred on serverless; a TCP `redis://` URL (Redis Cloud marketplace integration) is also supported. Unset = both disabled, app behaves as before. A Redis outage is treated as a cache miss, never as an error |
 
 > Google tip: the OAuth client needs `http://localhost:3000/api/auth/callback/google` locally, plus your production callback URL when deployed. The OAuth flow requires POST initiation — handled in `src/api/db.js`.
 
