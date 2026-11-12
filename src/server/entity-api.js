@@ -1,7 +1,8 @@
 import mongoose from 'mongoose';
 import { connectDb } from '../db/index.js';
 import { MODELS, Event, Registration, serialize } from '../db/models.js';
-import { isAdmin, requireAdmin } from './session.js';
+import { notifyTicketCreated } from './mailer.js';
+import { isAdmin, requireAdmin, requireUser } from './session.js';
 
 export class ApiError extends Error {
   constructor(status, message) {
@@ -28,8 +29,10 @@ function modelFor(entity) {
 function readScope(entity, user) {
   switch (entity) {
     case 'Event':
-      // published events are public; admins see everything
-      return isAdmin(user) ? null : { published: true };
+      // published events are public; admins see their own created events + all published
+      if (!user) return { published: true };
+      if (isAdmin(user)) return { $or: [{ created_by: user.id }, { published: true }] };
+      return { published: true };
     case 'Registration':
       // admin: everything, signed-in user: their own rows only,
       // anonymous: nothing (guest tickets are reachable by id only)
@@ -48,18 +51,24 @@ function readScope(entity, user) {
 }
 
 function canReadRow(entity, row, user) {
-  if (isAdmin(user)) return true;
+  if (!user) return false;
+  if (isAdmin(user)) {
+    switch (entity) {
+      case 'Event':
+        return row.created_by === user.id || row.published === true;
+      default:
+        return true;
+    }
+  }
   switch (entity) {
     case 'Event':
       return row.published === true;
     case 'Registration':
-      // Guest ticket links have no owning account, so the id itself is the
-      // capability — everything else requires the owner or an admin.
-      return row.user_id == null || (!!user && row.user_id === user.id);
+      return row.user_id == null || row.user_id === user.id;
     case 'Setting':
       return true;
     case 'User':
-      return !!user && row.id === user.id;
+      return row.id === user.id;
     default:
       return false;
   }
@@ -80,16 +89,18 @@ function assertCanWrite(entity, user) {
   }
 }
 
-async function assertRegistrationCreate(data, user) {
-  if (isAdmin(user)) return data;
+async function assertRegistrationCreate(data, user, isImport = false) {
   const out = { ...data };
   delete out.checked_in_at;
   delete out.checked_in_by;
   if (out.user_id === '') out.user_id = null;
+
+  if (isImport && !isAdmin(user)) throw new ApiError(403, 'Import mode requires admin.');
+
   if (!user) {
     if (out.user_id) throw new ApiError(403, 'Sign in to register as yourself.');
     out.user_id = null;
-  } else if (out.user_id != null && out.user_id !== user.id) {
+  } else if (!isImport && out.user_id != null && out.user_id !== user.id) {
     throw new ApiError(403, 'You cannot create registrations for another user.');
   }
   if (out.status && out.status !== 'confirmed' && out.status !== 'cancelled') {
@@ -102,31 +113,34 @@ async function assertRegistrationCreate(data, user) {
   if (out.event_id) {
     const event = await Event.findById(out.event_id).lean();
     if (!event) throw new ApiError(404, 'Event not found.');
-    if (event.status === 'draft') throw new ApiError(403, 'This event is not open for registration yet.');
-    if (event.status === 'completed') throw new ApiError(403, 'This event has already concluded.');
-    if (event.status === 'full' || event.status === 'closed') throw new ApiError(403, 'Registration is closed for this event.');
-    const now = new Date();
-    if (event.registration_start && now < event.registration_start) {
-      throw new ApiError(403, 'Registration has not opened yet.');
-    }
-    if (event.registration_end && now > event.registration_end) {
-      throw new ApiError(403, 'Registration is closed for this event.');
-    }
-    if (event.max_attendees != null && Number.isFinite(Number(event.max_attendees))) {
-      const count = await Registration.countDocuments({ event_id: out.event_id, status: { $ne: 'cancelled' } });
-      if (count >= Number(event.max_attendees)) throw new ApiError(403, 'This event is full.');
+    // Skip event status/window/capacity checks in import mode
+    if (!isImport) {
+      if (event.status === 'draft') throw new ApiError(403, 'This event is not open for registration yet.');
+      if (event.status === 'completed') throw new ApiError(403, 'This event has already concluded.');
+      if (event.status === 'full' || event.status === 'closed') throw new ApiError(403, 'Registration is closed for this event.');
+      const now = new Date();
+      if (event.registration_start && now < event.registration_start) {
+        throw new ApiError(403, 'Registration has not opened yet.');
+      }
+      if (event.registration_end && now > event.registration_end) {
+        throw new ApiError(403, 'Registration is closed for this event.');
+      }
+      if (event.max_attendees != null && Number.isFinite(Number(event.max_attendees))) {
+        const count = await Registration.countDocuments({ event_id: out.event_id, status: { $ne: 'cancelled' } });
+        if (count >= Number(event.max_attendees)) throw new ApiError(403, 'This event is full.');
+      }
     }
     // Friendly duplicate messages. The partial unique indexes remain the hard
     // backstop below — these just fire before the insert with a clearer reason.
-    if (out.guest_email) {
-      const existing = await Registration.exists({ event_id: out.event_id, guest_email: out.guest_email });
-      if (existing) throw new ApiError(409, 'This email is already registered for this event.');
-    }
-    if (out.user_id) {
+    // Note: guest_email duplicate check is intentionally omitted here to allow
+    // bulk imports with ordered:false to handle duplicates gracefully.
+    if (!isImport && out.user_id) {
       const existing = await Registration.exists({ event_id: out.event_id, user_id: out.user_id });
       if (existing) throw new ApiError(409, 'You are already registered for this event.');
     }
   }
+  // Clean up import flag
+  delete out._importMode;
   return out;
 }
 
@@ -209,6 +223,22 @@ function rethrow(error, entity) {
   throw error;
 }
 
+// Bulk inserts report failures per row so the client can show a live import log.
+function bulkWriteFailureMessage(error, entity) {
+  const code = error?.code ?? error?.err?.code;
+  const text = error?.errmsg || error?.err?.errmsg || error?.message || '';
+  if (code === 11000) {
+    if (entity === 'Registration') {
+      if (text.includes('guest_email') || /email/i.test(text)) {
+        return 'This email is already registered for this event.';
+      }
+      return 'This attendee is already registered for this event.';
+    }
+    return 'A record with the same unique value already exists.';
+  }
+  return text || 'Could not import this row.';
+}
+
 // ---------------------------------------------------------------------------
 // Public API used by the route handlers
 // ---------------------------------------------------------------------------
@@ -276,6 +306,30 @@ export async function listGuestTickets(email, eventId) {
   }));
 }
 
+// Tickets that belong to the signed-in caller: registrations created under
+// their account, plus guest registrations made with the same email. The email
+// comes from the session (never the client), so this cannot be used to read
+// someone else's guest ticket.
+export async function listMyRegistrations(user, eventId) {
+  requireUser(user);
+  if (eventId != null && typeof eventId !== 'string') {
+    throw new ApiError(400, 'event_id must be a string.');
+  }
+  await connectDb();
+  const email = String(user.email || '').trim().toLowerCase();
+  const conditions = [{ user_id: user.id }];
+  if (email) {
+    conditions.push({
+      user_id: null,
+      guest_email: { $regex: new RegExp(`^${escapeRegExp(email)}$`, 'i') },
+    });
+  }
+  const query = { $or: conditions };
+  if (eventId) query.event_id = eventId;
+  const rows = await Registration.find(query).sort({ created_date: -1 }).limit(MAX_ROWS).lean();
+  return rows.map(serialize);
+}
+
 function escapeRegExp(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -319,9 +373,16 @@ export async function createEntity(entity, data, user) {
   let payload = sanitize(model, data);
   await connectDb();
   if (entity === 'Registration') payload = await assertRegistrationCreate(payload, user);
+  if (entity === 'Event' && user) payload.created_by = user.id;
   try {
     const doc = await model.create(payload);
-    return serialize(doc);
+    const created = serialize(doc);
+    if (entity === 'Registration') {
+      // Ticket email: fire-and-forget, never blocks or fails registration.
+      // (CSV bulk imports use bulkCreate below, which intentionally skips it.)
+      notifyTicketCreated(created).catch(() => {});
+    }
+    return created;
   } catch (error) {
     rethrow(error, entity);
   }
@@ -332,19 +393,74 @@ export async function bulkCreate(entity, items, user) {
   if (items.length === 0) return [];
   const model = modelFor(entity);
   assertCanWrite(entity, user);
+  // Extract _importMode before sanitize (it strips unknown fields)
+  const importModes = items.map((item) => item._importMode === true);
   const payloads = items.map((item) => sanitize(model, item));
   const shaped = [];
-  for (const item of payloads) {
-    let payload = item;
-    if (entity === 'Registration') payload = await assertRegistrationCreate(payload, user);
+  for (let i = 0; i < payloads.length; i++) {
+    let payload = payloads[i];
+    if (entity === 'Registration') {
+      payload = await assertRegistrationCreate(payload, user, importModes[i]);
+    }
     shaped.push(payload);
   }
   await connectDb();
   try {
-    const docs = await model.insertMany(shaped);
-    return docs.map(serialize);
+    // ordered: false continues past duplicate-key errors. The response is
+    // aligned with `items` so the client can report each row's outcome.
+    const docs = await model.insertMany(shaped, { ordered: false });
+    return docs.map((doc, index) => ({
+      index,
+      ok: true,
+      id: String(doc._id),
+      data: serialize(doc),
+    }));
   } catch (error) {
-    rethrow(error, entity);
+    // Mongoose builds `results` aligned with the input order for
+    // ordered:false inserts: successful rows are documents, failed rows are
+    // write errors. Prefer it when available.
+    if (Array.isArray(error?.results) && error.results.length === shaped.length) {
+      return error.results.map((entry, index) => {
+        const isError = !entry || entry instanceof Error || entry.errmsg || entry.err?.errmsg;
+        if (isError) {
+          return { index, ok: false, error: bulkWriteFailureMessage(entry, entity) };
+        }
+        return { index, ok: true, id: String(entry._id), data: serialize(entry) };
+      });
+    }
+
+    const result = error?.result;
+    const insertedIds = error?.insertedIds || error?.err?.insertedIds || result?.insertedIds || {};
+    const writeErrors = error?.writeErrors || error?.err?.writeErrors || result?.writeErrors || [];
+    const hasPartialResult =
+      Object.keys(insertedIds).length > 0 ||
+      writeErrors.length > 0 ||
+      (result?.insertedCount != null && result.insertedCount > 0);
+    if (!hasPartialResult) rethrow(error, entity);
+
+    const results = shaped.map((_, index) => ({
+      index,
+      ok: false,
+      error: 'Could not import this row.',
+    }));
+
+    Object.entries(insertedIds).forEach(([index, id]) => {
+      const position = Number(index);
+      if (results[position]) results[position] = { index: position, ok: true, id: String(id) };
+    });
+
+    writeErrors.forEach((writeError) => {
+      const position = writeError?.index;
+      if (results[position]) {
+        results[position] = {
+          index: position,
+          ok: false,
+          error: bulkWriteFailureMessage(writeError, entity),
+        };
+      }
+    });
+
+    return results;
   }
 }
 

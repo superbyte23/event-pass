@@ -44,3 +44,9 @@ public/uploads/
 
 # Next.js build output
 .next/
+
+# Local admin credentials scratch file (never commit)
+admin-user.txt
+
+# Local tool settings
+.claude/settings.local.json

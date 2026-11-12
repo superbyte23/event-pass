@@ -7,6 +7,7 @@ const API_BASE = '/api';
 async function request(path, options = {}) {
   const response = await fetch(path, {
     credentials: 'same-origin',
+    cache: 'no-store',
     ...options,
     headers: {
       ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
@@ -66,6 +67,11 @@ function entityApi(entity) {
       request(entityUrl(entity, `/${encodeURIComponent(id)}`), { method: 'DELETE' }),
     deleteMany: (filter) =>
       request(entityUrl(entity, query({ filter })), { method: 'DELETE' }),
+    // Session-scoped "my" rows for Registration: account registrations plus
+    // guest registrations made with the signed-in user's email.
+    ...(entity === 'Registration'
+      ? { mine: (eventId) => request(`${API_BASE}/my-tickets${query({ event_id: eventId })}`) }
+      : {}),
   };
 }
 
@@ -166,7 +172,17 @@ export const db = {
         throw error;
       }
       // Full reload so AuthProvider re-runs /api/auth/me with the new session.
-      window.location.href = toPath(returnTo);
+      // Admins land in the dashboard; everyone else returns to where they
+      // started and is never sent into /admin.
+      let target = toPath(returnTo);
+      if (target.startsWith('/admin')) target = '/';
+      try {
+        const me = await request(`${API_BASE}/auth/me`);
+        if (me?.role === 'admin') target = '/admin';
+      } catch {
+        // keep the non-admin target
+      }
+      window.location.href = target;
     },
     redirectToLogin: (returnTo) => {
       window.location.href = `/login?returnTo=${encodeURIComponent(toPath(returnTo))}`;

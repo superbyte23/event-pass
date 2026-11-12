@@ -45,6 +45,7 @@ const eventSchema = new Schema(
     published: { type: Boolean, default: false },
     accent_color: { type: String, default: '#0f172a' },
     form_fields: { type: [Schema.Types.Mixed], default: [] },
+    created_by: { type: String, default: null, index: true },
     created_date: createdDate,
   },
   options,

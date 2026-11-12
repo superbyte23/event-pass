@@ -2,9 +2,10 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 
+import Avatar from "@/components/Avatar";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Ticket, LayoutDashboard, CalendarDays, User, LogOut, LogIn, Menu, ShieldCheck, Search } from "lucide-react";
+import { Ticket, LayoutDashboard, CalendarDays, User, LogOut, LogIn, Menu, Search } from "lucide-react";
 
 function MobileItem({ to, onNavigate, icon: Icon, children }) {
   const navigate = useNavigate();
@@ -24,8 +25,7 @@ function MobileItem({ to, onNavigate, icon: Icon, children }) {
 // Mobile sheet mirrors the desktop links, including auth gating: no dead-end
 // links for logged-out visitors, and sign in/out actions.
 function MobileMenu({ onNavigate }) {
-  const { isAuthenticated, user, logout, googleAuthEnabled } = useAuth();
-  const googleMode = googleAuthEnabled !== false;
+  const { isAuthenticated, user, logout } = useAuth();
   const navigate = useNavigate();
   const handleLogout = () => {
     onNavigate?.();
@@ -44,21 +44,17 @@ function MobileMenu({ onNavigate }) {
       {isAuthenticated && user?.role === "admin" && (
         <MobileItem to="/admin" onNavigate={onNavigate} icon={LayoutDashboard}>Admin</MobileItem>
       )}
-      {!isAuthenticated && !googleMode && (
-        <MobileItem to="/admin" onNavigate={onNavigate} icon={ShieldCheck}>Admin</MobileItem>
-      )}
       <div className="my-2 border-t border-border" />
       {isAuthenticated ? (
         <>
           <MobileItem to="/profile" onNavigate={onNavigate} icon={User}>
             <span className="flex items-center gap-2">
-              {user?.image ? (
-                <img src={user.image} alt="" className="w-5 h-5 rounded-full object-cover" />
-              ) : (
-                <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[10px] font-semibold">
-                  {(user?.full_name || user?.email || "?").charAt(0).toUpperCase()}
-                </span>
-              )}
+              <Avatar
+                src={user?.image}
+                name={user?.full_name || user?.email}
+                className="w-5 h-5"
+                fallbackClassName="text-[10px]"
+              />
               <span className="truncate">{user?.full_name || "Profile"}</span>
             </span>
           </MobileItem>
@@ -77,8 +73,7 @@ function MobileMenu({ onNavigate }) {
 }
 
 function NavLinks({ onNavigate }) {
-  const { isAuthenticated, user, logout, googleAuthEnabled } = useAuth();
-  const googleMode = googleAuthEnabled !== false;
+  const { isAuthenticated, user, logout } = useAuth();
   const navigate = useNavigate();
   const go = (path) => {
     onNavigate?.();
@@ -104,26 +99,21 @@ function NavLinks({ onNavigate }) {
       {isAuthenticated ? (
         <div className="flex items-center gap-3">
           <button onClick={() => go("/profile")} className="flex items-center gap-2 text-sm font-medium text-foreground hover:opacity-80 transition-opacity">
-            {user?.image ? (
-              <img src={user.image} alt="" className="w-7 h-7 rounded-full object-cover" />
-            ) : (
-              <span className="w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-semibold">
-                {(user?.full_name || user?.email || "?").charAt(0).toUpperCase()}
-              </span>
-            )}
+            <Avatar
+              src={user?.image}
+              name={user?.full_name || user?.email}
+              className="w-7 h-7"
+              fallbackClassName="text-xs"
+            />
             <span className="hidden sm:inline max-w-[120px] truncate">{user?.full_name || "Account"}</span>
           </button>
           <Button variant="ghost" size="sm" onClick={handleLogout} className="text-muted-foreground">
             <LogOut className="w-4 h-4 mr-1.5" /> Sign out
           </Button>
         </div>
-      ) : googleMode ? (
+      ) : (
         <Button size="sm" onClick={() => go("/login")}>
           <LogIn className="w-4 h-4 mr-1.5" /> Sign in
-        </Button>
-      ) : (
-        <Button size="sm" variant="ghost" onClick={() => go("/admin")}>
-          <ShieldCheck className="w-4 h-4 mr-1.5" /> Admin
         </Button>
       )}
     </>

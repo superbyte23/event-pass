@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { checkInByQrValue, parseQrValue } from "@/lib/checkin";
 import { decodeGrayscale, toGrayscale } from "@/lib/qr-decode";
 import { cn } from "@/lib/utils";
-import { Camera, CameraOff, History, Loader2, QrCode, ScanLine } from "lucide-react";
+import { Camera, CameraOff, Flashlight, FlashlightOff, History, Loader2, QrCode, ScanLine } from "lucide-react";
 
 const SCAN_INTERVAL_MS = 250;
 const CAPTURE_MAX_WIDTH = 800;
@@ -16,6 +16,8 @@ export default function AdminCheckIn() {
   const scannerRef = useRef(null);
   const videoRef = useRef(null);
   const [scanning, setScanning] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
+  const [torchSupported, setTorchSupported] = useState(false);
   const [cameraError, setCameraError] = useState("");
   const [manual, setManual] = useState("");
   const [busy, setBusy] = useState(false);
@@ -50,9 +52,22 @@ export default function AdminCheckIn() {
     const ctx = scannerRef.current;
     scannerRef.current = null;
     setScanning(false);
+    setTorchOn(false);
     if (ctx?.timer) clearTimeout(ctx.timer);
     if (ctx?.stream) ctx.stream.getTracks().forEach((t) => t.stop());
     if (videoRef.current) videoRef.current.srcObject = null;
+  };
+
+  const toggleTorch = async () => {
+    const track = scannerRef.current?.track;
+    if (!track) return;
+    const next = !torchOn;
+    try {
+      await track.applyConstraints({ advanced: [{ torch: next }] });
+      setTorchOn(next);
+    } catch {
+      setTorchOn(false);
+    }
   };
 
   // Camera + QR decoding runs fully offline in this app: getUserMedia for
@@ -86,7 +101,21 @@ export default function AdminCheckIn() {
         video.srcObject = stream;
         await video.play();
         const canvas = document.createElement("canvas");
-        const ctx = { stream, timer: null, decoding: false };
+        const track = stream.getVideoTracks()[0] || null;
+        let supportsTorch = false;
+        try {
+          const caps = track?.getCapabilities?.();
+          supportsTorch = !!caps && "torch" in caps;
+        } catch {
+          supportsTorch = false;
+        }
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        setTorchSupported(supportsTorch);
+        setTorchOn(false);
+        const ctx = { stream, track, timer: null, decoding: false };
         scannerRef.current = ctx;
         const tick = () => {
           if (cancelled || !scannerRef.current || ctx.decoding) return;
@@ -106,6 +135,11 @@ export default function AdminCheckIn() {
               canvas.height
             );
             if (hit?.text) {
+              try {
+                navigator.vibrate?.(60);
+              } catch {
+                /* haptics unsupported */
+              }
               stopCamera();
               processValue(hit.text);
               return;
@@ -161,9 +195,22 @@ export default function AdminCheckIn() {
           </p>
         </div>
         {scanning ? (
-          <Button variant="outline" onClick={stopCamera}>
-            <CameraOff className="mr-1.5 h-4 w-4" /> Stop camera
-          </Button>
+          <div className="flex gap-2">
+            {torchSupported && (
+              <Button
+                variant={torchOn ? "default" : "outline"}
+                onClick={toggleTorch}
+                aria-pressed={torchOn}
+                title="Toggle flashlight"
+              >
+                {torchOn ? <Flashlight className="mr-1.5 h-4 w-4" /> : <FlashlightOff className="mr-1.5 h-4 w-4" />}
+                Torch
+              </Button>
+            )}
+            <Button variant="outline" onClick={stopCamera}>
+              <CameraOff className="mr-1.5 h-4 w-4" /> Stop camera
+            </Button>
+          </div>
         ) : (
           <Button onClick={() => setScanning(true)}>
             <Camera className="mr-1.5 h-4 w-4" /> Start camera

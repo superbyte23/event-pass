@@ -81,6 +81,8 @@ npm run dev                  # http://localhost:3000
 | `ADMIN_EMAILS` | Comma-separated accounts granted the admin role |
 | `ADMIN_PASSWORD` | Shared admin email/password sign-in (empty disables it) |
 | `BLOB_READ_WRITE_TOKEN` | Vercel Blob token (auto-provided on Vercel; locally uploads fall back to `public/uploads/`) |
+| `APP_URL` | Public app URL used for links inside emails (defaults to `NEXTAUTH_URL`, then localhost) |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` / `MAIL_FROM` | Outgoing mail for ticket delivery (provider-agnostic SMTP). **Optional:** when `SMTP_HOST` is unset, no mail is sent and the app behaves exactly as without it |
 
 > Google tip: the OAuth client needs `http://localhost:3000/api/auth/callback/google` locally, plus your production callback URL when deployed. The OAuth flow requires POST initiation — handled in `src/api/db.js`.
 

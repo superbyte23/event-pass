@@ -3,6 +3,7 @@ import { db } from "@/api/db";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
+import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EventStatusBadge } from "@/components/StatusBadge";
@@ -17,15 +18,17 @@ function isToday(dateStr) {
 }
 
 export default function AdminDashboard() {
+  const { user } = useAuth();
   const [events, setEvents] = useState(null);
   const [regs, setRegs] = useState(null);
 
   useEffect(() => {
+    if (!user?.id) return;
     Promise.all([
-      db.entities.Event.list("-created_date", 1000),
+      db.entities.Event.filter({ created_by: user.id }, "-created_date", 1000),
       db.entities.Registration.list("-created_date", 1000),
     ]).then(([e, r]) => { setEvents(e || []); setRegs(r || []); }).catch(() => { setEvents([]); setRegs([]); });
-  }, []);
+  }, [user?.id]);
 
   if (!events || !regs) {
     return <div className="flex h-64 items-center justify-center"><div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" /></div>;

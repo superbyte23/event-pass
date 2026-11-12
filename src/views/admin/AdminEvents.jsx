@@ -3,20 +3,35 @@ import { db } from "@/api/db";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
+import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EventStatusBadge } from "@/components/StatusBadge";
 import { Image } from "@/components/ui/image";
 import { formatDateShort } from "@/lib/event-utils";
-import { Plus, Pencil, Eye, Users, Trash2, Search } from "lucide-react";
+import { Plus, Pencil, Eye, Users, Trash2, Search, RefreshCw } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 export default function AdminEvents() {
+  const { user } = useAuth();
+  const { confirm, close: closeConfirm, ConfirmDialog } = useConfirm();
   const [events, setEvents] = useState(null);
   const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(true);
 
-  const load = () => db.entities.Event.list("-created_date", 1000).then((l) => setEvents(l || [])).catch(() => setEvents([]));
-  useEffect(() => { load(); }, []);
+  const load = async () => {
+    setLoading(true);
+    try {
+      const l = await db.entities.Event.filter({ created_by: user?.id }, "-created_date", 1000);
+      setEvents(l || []);
+    } catch {
+      setEvents([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => { load(); }, [user?.id]);
 
   const filtered = events ? events.filter((e) => {
     const q = query.trim().toLowerCase();
@@ -24,7 +39,13 @@ export default function AdminEvents() {
   }) : null;
 
   const handleDelete = async (e) => {
-    if (!confirm(`Delete "${e.name}"? This also removes its registrations.`)) return;
+    const confirmed = await confirm({
+      title: "Delete event",
+      description: `Delete "${e.name}"? This also removes its registrations.`,
+      confirmText: "Delete",
+      variant: "destructive",
+    });
+    if (!confirmed) return;
     try {
       await db.entities.Registration.deleteMany({ event_id: e.id });
     } catch {}
@@ -44,7 +65,10 @@ export default function AdminEvents() {
           <h1 className="text-2xl font-bold tracking-tight">Events</h1>
           <p className="text-sm text-muted-foreground">Create, edit and manage your events.</p>
         </div>
-        <Button asChild><Link to="/admin/events/create"><Plus className="w-4 h-4 mr-1.5" /> New event</Link></Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={load} disabled={loading}><RefreshCw className={`w-4 h-4 mr-1.5 ${loading ? 'animate-spin' : ''}`} /> Refresh</Button>
+          <Button asChild><Link to="/admin/events/create"><Plus className="w-4 h-4 mr-1.5" /> New event</Link></Button>
+        </div>
       </div>
 
       <div className="relative w-full sm:w-72">
@@ -82,6 +106,7 @@ export default function AdminEvents() {
           ))}
         </div>
       )}
+      {ConfirmDialog}
     </div>
   );
 }

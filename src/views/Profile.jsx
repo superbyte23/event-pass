@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 
 import SiteNav from "@/components/SiteNav";
+import Avatar from "@/components/Avatar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { formatDate } from "@/lib/event-utils";
@@ -25,13 +26,12 @@ export default function Profile() {
 
         <Card className="mt-8 overflow-hidden">
           <div className="flex flex-col items-center gap-4 bg-gradient-to-br from-slate-50 to-background p-8 sm:flex-row sm:items-center sm:gap-6">
-            {user?.image ? (
-              <img src={user.image} alt="" className="h-20 w-20 rounded-full object-cover ring-4 ring-background shadow-sm" />
-            ) : (
-              <span className="flex h-20 w-20 items-center justify-center rounded-full bg-primary text-2xl font-semibold text-primary-foreground">
-                {(user?.full_name || user?.email || "?").charAt(0).toUpperCase()}
-              </span>
-            )}
+            <Avatar
+              src={user?.image}
+              name={user?.full_name || user?.email}
+              className="h-20 w-20 ring-4 ring-background shadow-sm"
+              fallbackClassName="text-2xl"
+            />
             <div className="text-center sm:text-left">
               <h2 className="text-xl font-semibold">{user?.full_name || "Guest"}</h2>
               <div className="mt-1 flex items-center justify-center gap-1.5 text-sm text-muted-foreground sm:justify-start">

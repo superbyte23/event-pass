@@ -4,11 +4,13 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 
 import { useAuth } from "@/lib/AuthContext";
+import Avatar from "@/components/Avatar";
 import SiteNav from "@/components/SiteNav";
 import QRCode from "@/components/QRCode";
 import { RegStatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Image } from "@/components/ui/image";
+import { resolveAttendeeProfile } from "@/lib/attendee";
 import { qrCheckinUrl, formatDate, timeRangeLabel } from "@/lib/event-utils";
 import { Loader2, CalendarDays, Clock, MapPin, Ticket as TicketIcon, Printer, ArrowLeft, CheckCircle2 } from "lucide-react";
 
@@ -27,17 +29,10 @@ export default function Ticket() {
         const r = await db.entities.Registration.get(registration);
         if (!alive) return;
         setReg(r);
-        // guest info: own profile if owner, else fetch the user record (admin)
-        if (!r.user_id) {
-          setGuest({ full_name: r.guest_name, email: r.guest_email, image: null });
-        } else if (r.user_id === user?.id) {
-          setGuest({ full_name: user.full_name, email: user.email, image: user.image });
-        } else {
-          try {
-            const u = await db.entities.User.get(r.user_id);
-            setGuest(u);
-          } catch { setGuest(null); }
-        }
+        // Guest tickets resolve to the account photo when the guest email
+        // belongs to a user (admins can read any user; guests only their own).
+        const profile = await resolveAttendeeProfile(r, user).catch(() => null);
+        if (alive) setGuest(profile);
         try {
           const e = await db.entities.Event.get(r.event_id);
           if (alive) setEvent(e);
@@ -47,7 +42,7 @@ export default function Ticket() {
       }
     })();
     return () => { alive = false; };
-  }, [registration, user?.id]);
+  }, [registration, user]);
 
   if (reg === undefined || event === undefined) {
     return (
@@ -127,13 +122,13 @@ export default function Ticket() {
             <div className="sm:col-span-3">
               <p className="text-xs font-medium uppercase tracking-wider text-slate-400">Guest</p>
               <div className="mt-3 flex items-center gap-3">
-                {guest?.image ? (
-                  <img src={guest.image} alt="" className="h-12 w-12 rounded-full object-cover" />
-                ) : (
-                  <span className="flex h-12 w-12 items-center justify-center rounded-full text-lg font-semibold text-white" style={{ backgroundColor: accent }}>
-                    {(guest?.full_name || guest?.email || "?").charAt(0).toUpperCase()}
-                  </span>
-                )}
+                <Avatar
+                  src={guest?.image}
+                  name={guest?.full_name || guest?.email}
+                  className="h-12 w-12"
+                  fallbackClassName="text-lg text-white"
+                  style={guest?.image ? undefined : { backgroundColor: accent }}
+                />
                 <div className="min-w-0">
                   <p className="truncate font-semibold text-slate-900">{guest?.full_name || "Guest"}</p>
                   <p className="truncate text-sm text-slate-500">{guest?.email}</p>

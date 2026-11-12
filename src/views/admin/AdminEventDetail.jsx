@@ -7,12 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Image } from "@/components/ui/image";
 import { EventStatusBadge, RegStatusBadge } from "@/components/StatusBadge";
-import { formatDate, formatDateTime, timeRangeLabel } from "@/lib/event-utils";
-import { Pencil, Users, ExternalLink, Trash2, Eye, ArrowLeft, Globe, GlobeLock } from "lucide-react";
+import { formatDate, formatDateShort, formatDateTime, timeRangeLabel } from "@/lib/event-utils";
+import { Pencil, Users, ExternalLink, Trash2, Eye, ArrowLeft, Globe, GlobeLock, List } from "lucide-react";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 export default function AdminEventDetail() {
   const { event: eventId } = useParams();
   const navigate = useNavigate();
+  const { confirm, close: closeConfirm, ConfirmDialog } = useConfirm();
   const [event, setEvent] = useState(undefined);
   const [regs, setRegs] = useState([]);
 
@@ -30,10 +32,17 @@ export default function AdminEventDetail() {
   const capacity = event.max_attendees && event.max_attendees > 0 ? event.max_attendees : null;
   const remaining = capacity !== null ? Math.max(0, capacity - confirmed.length) : null;
   const recent = [...regs].sort((a, b) => new Date(b.created_date) - new Date(a.created_date)).slice(0, 5);
+  const formFields = event?.form_fields || [];
 
   const togglePublish = async () => { await db.entities.Event.update(event.id, { published: !event.published }); load(); };
   const handleDelete = async () => {
-    if (!confirm(`Delete "${event.name}"? This also removes its registrations.`)) return;
+    const confirmed = await confirm({
+      title: "Delete event",
+      description: `Delete "${event.name}"? This also removes its registrations.`,
+      confirmText: "Delete",
+      variant: "destructive",
+    });
+    if (!confirmed) return;
     try { await db.entities.Registration.deleteMany({ event_id: event.id }); } catch {}
     await db.entities.Event.delete(event.id);
     navigate("/admin/events");
@@ -94,19 +103,57 @@ export default function AdminEventDetail() {
         {recent.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted-foreground">No registrations yet.</p>
         ) : (
-          <div className="divide-y divide-border">
-            {recent.map((r) => (
-              <div key={r.id} className="flex items-center justify-between py-2.5 text-sm">
-                <span className="font-mono text-xs">{r.registration_number}</span>
-                <div className="flex items-center gap-3">
-                  <RegStatusBadge status={r.status} />
-                  <Button asChild size="sm" variant="ghost"><Link to={`/admin/registrations/${r.id}`}><Eye className="w-3.5 h-3.5" /></Link></Button>
-                </div>
-              </div>
-            ))}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-2 font-medium">Registration</th>
+                  <th className="px-4 py-2 font-medium">Email</th>
+                  {formFields.filter((f) => f.type !== "email").map((f) => (
+                    <th key={f.id} className="px-4 py-2 font-medium">{f.label}</th>
+                  ))}
+                  <th className="px-4 py-2 font-medium">Registered</th>
+                  <th className="px-4 py-2 font-medium">Status</th>
+                  <th className="px-4 py-2 font-medium text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {recent.map((r) => {
+                  const displayName = r.user?.full_name || r.guest_name;
+                  const displayEmail = r.user?.email || r.guest_email;
+                  return (
+                    <tr key={r.id} className="hover:bg-muted/30">
+                      <td className="px-4 py-2 font-mono text-xs">{r.registration_number}</td>
+                      <td className="px-4 py-2">
+                        <div className="font-medium">{displayName || displayEmail || "—"}</div>
+                        {displayName && displayEmail && (
+                          <div className="text-xs text-muted-foreground">{displayEmail}</div>
+                        )}
+                      </td>
+                      {formFields.filter((f) => f.type !== "email").map((f) => (
+                        <td key={f.id} className="px-4 py-2">
+                          {(() => {
+                            const val = r.responses?.[f.id];
+                            if (val === undefined || val === null || val === "") return <span className="text-muted-foreground">—</span>;
+                            if (Array.isArray(val)) return <span>{val.join(", ")}</span>;
+                            return <span>{String(val)}</span>;
+                          })()}
+                        </td>
+                      ))}
+                      <td className="px-4 py-2 text-muted-foreground">{r.created_date ? formatDateShort(r.created_date) : "—"}</td>
+                      <td className="px-4 py-2"><RegStatusBadge status={r.status} /></td>
+                      <td className="px-4 py-2 text-right">
+                        <Button asChild size="sm" variant="ghost"><Link to={`/admin/registrations/${r.id}`}><Eye className="w-3.5 h-3.5" /></Link></Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </Card>
+      {ConfirmDialog}
     </div>
   );
 }

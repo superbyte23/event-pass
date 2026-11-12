@@ -1,5 +1,5 @@
 {
-  "name": "base44-app",
+  "name": "event-pass",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -31,6 +31,7 @@
     "mongoose": "^9.11.1",
     "next": "^15.5.27",
     "next-auth": "^4.24.15",
+    "nodemailer": "^7.0.13",
     "react": "^18.2.0",
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.2.0",

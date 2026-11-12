@@ -4,16 +4,20 @@ import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 
 import { useAuth } from "@/lib/AuthContext";
+import Avatar from "@/components/Avatar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { RegStatusBadge } from "@/components/StatusBadge";
 import { formatDateTime } from "@/lib/event-utils";
+import { resolveAttendeeProfile } from "@/lib/attendee";
 import { ArrowLeft, Ticket as TicketIcon, UserCheck, Undo2, Ban, ExternalLink } from "lucide-react";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 export default function AdminRegistrationDetail() {
   const { registration } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { confirm, close: closeConfirm, ConfirmDialog } = useConfirm();
   const [reg, setReg] = useState(undefined);
   const [event, setEvent] = useState(null);
   const [guest, setGuest] = useState(null);
@@ -23,13 +27,10 @@ export default function AdminRegistrationDetail() {
     db.entities.Registration.get(registration).then(async (r) => {
       setReg(r);
       try { setEvent(await db.entities.Event.get(r.event_id)); } catch { setEvent(null); }
-      try {
-        if (r.user_id) setGuest(await db.entities.User.get(r.user_id));
-        else setGuest({ full_name: r.guest_name, email: r.guest_email, image: null });
-      } catch { setGuest(null); }
+      try { setGuest(await resolveAttendeeProfile(r, user)); } catch { setGuest(null); }
     }).catch(() => setReg(null));
   };
-  useEffect(() => { load(); }, [registration]);
+  useEffect(() => { load(); }, [registration, user]);
 
   const update = async (data) => {
     setBusy(true);
@@ -37,7 +38,15 @@ export default function AdminRegistrationDetail() {
   };
   const checkIn = () => update({ status: "checked_in", checked_in_at: new Date().toISOString(), checked_in_by: user?.id });
   const undoCheckIn = () => update({ status: "confirmed", checked_in_at: null, checked_in_by: null });
-  const cancel = async () => { if (confirm("Cancel this registration?")) update({ status: "cancelled" }); };
+  const cancel = async () => {
+    const confirmed = await confirm({
+      title: "Cancel registration",
+      description: "Cancel this registration? This cannot be undone.",
+      confirmText: "Cancel",
+      variant: "destructive",
+    });
+    if (confirmed) update({ status: "cancelled" });
+  };
   const restore = () => update({ status: "confirmed" });
 
   if (reg === undefined) return <div className="flex h-64 items-center justify-center"><div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" /></div>;
@@ -66,7 +75,12 @@ export default function AdminRegistrationDetail() {
       <Card className="p-5">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Guest</h2>
         <div className="flex items-center gap-4">
-          {guest?.image ? <img src={guest.image} alt="" className="h-14 w-14 rounded-full object-cover" /> : <span className="flex h-14 w-14 items-center justify-center rounded-full bg-primary text-lg font-semibold text-primary-foreground">{(guest?.full_name || "?").charAt(0)}</span>}
+          <Avatar
+            src={guest?.image}
+            name={guest?.full_name}
+            className="h-14 w-14"
+            fallbackClassName="text-lg"
+          />
           <div>
             <div className="font-semibold">{guest?.full_name || "Unknown guest"}</div>
             <div className="text-sm text-muted-foreground">{guest?.email || ""}</div>
@@ -119,6 +133,7 @@ export default function AdminRegistrationDetail() {
           <Button onClick={restore} disabled={busy} variant="outline"><Undo2 className="w-4 h-4 mr-1.5" /> Restore</Button>
         )}
       </div>
+      {ConfirmDialog}
     </div>
   );
 }

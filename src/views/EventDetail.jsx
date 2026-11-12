@@ -30,7 +30,9 @@ export default function EventDetail() {
     setMyReg(null);
     if (!event) return;
     if (user && googleMode) {
-      db.entities.Registration.filter({ event_id: event.id })
+      // Only the caller's own registrations (or a guest ticket under their
+      // email) — admins must not treat someone else's ticket as theirs.
+      db.entities.Registration.mine(event.id)
         .then((list) => setMyReg((list || []).find((r) => r.status !== "cancelled") || false))
         .catch(() => setMyReg(false));
     } else {

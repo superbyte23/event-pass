@@ -1,4 +1,6 @@
 import { decode } from 'next-auth/jwt';
+import { connectDb } from '../db/index.js';
+import { User } from '../db/models.js';
 
 const SESSION_COOKIES = [
   '__Secure-authjs.session-token',
@@ -6,6 +8,20 @@ const SESSION_COOKIES = [
   '__Secure-next-auth.session-token',
   'next-auth.session-token',
 ];
+
+// JWTs only carry the picture captured at sign-in. A token minted before the
+// account had a Google photo (or by the credentials provider) would otherwise
+// keep a null avatar forever, so fall back to the stored user document.
+async function storedProfileImage(userId) {
+  if (!userId) return null;
+  try {
+    await connectDb();
+    const doc = await User.findById(userId).select('image').lean();
+    return doc?.image || null;
+  } catch {
+    return null;
+  }
+}
 
 // Decodes the Auth.js JWT session cookie without going through
 // getServerSession(), so any route handler can read the caller's identity.
@@ -16,11 +32,12 @@ export async function getSessionUser(req) {
     try {
       const payload = await decode({ token, secret: process.env.AUTH_SECRET });
       if (!payload?.email || !payload.uid) continue;
+      const image = payload.picture || (await storedProfileImage(payload.uid));
       return {
         id: payload.uid,
         email: payload.email,
         full_name: payload.name || null,
-        image: payload.picture || null,
+        image,
         role: payload.role === 'admin' ? 'admin' : 'user',
       };
     } catch {

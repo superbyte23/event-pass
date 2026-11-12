@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
+import Avatar from "@/components/Avatar";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { LayoutDashboard, CalendarDays, Settings, ArrowLeft, Ticket, ScanLine, Menu } from "lucide-react";
@@ -43,7 +44,7 @@ function MobileMenu({ onNavigate, isActive }) {
         <ArrowLeft className="w-4 h-4" /> Back to site
       </button>
       <div className="mt-2 flex items-center gap-2 px-2 text-xs text-muted-foreground">
-        {user?.image ? <img src={user.image} alt="" className="h-6 w-6 rounded-full" /> : <span className="h-6 w-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[10px] font-semibold">{(user?.full_name || "?").charAt(0)}</span>}
+        <Avatar src={user?.image} name={user?.full_name || user?.email} className="h-6 w-6" fallbackClassName="text-[10px]" />
         <span className="truncate">{user?.full_name || user?.email}</span>
       </div>
     </div>
@@ -76,7 +77,7 @@ export default function AdminLayout() {
               <ArrowLeft className="w-4 h-4" /> Back to site
             </Link>
             <div className="mt-3 flex items-center gap-2 px-3 text-xs text-muted-foreground">
-              {user?.image ? <img src={user.image} alt="" className="h-6 w-6 rounded-full" /> : <span className="h-6 w-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[10px] font-semibold">{(user?.full_name || "?").charAt(0)}</span>}
+              <Avatar src={user?.image} name={user?.full_name || user?.email} className="h-6 w-6" fallbackClassName="text-[10px]" />
               <span className="truncate">{user?.full_name || user?.email}</span>
             </div>
           </div>

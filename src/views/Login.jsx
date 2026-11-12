@@ -12,10 +12,18 @@ import { Label } from "@/components/ui/label";
 import { Ticket } from "lucide-react";
 
 export default function Login() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const returnTo = params.get("returnTo") || "/";
+  // Admins always land in the dashboard after sign-in. Everyone else returns to
+  // where they came from and is never redirected into the admin area.
+  const target =
+    user?.role === "admin"
+      ? "/admin"
+      : returnTo.startsWith("/") && !returnTo.startsWith("/admin")
+        ? returnTo
+        : "/";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -23,13 +31,18 @@ export default function Login() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (isAuthenticated) navigate(returnTo, { replace: true });
-  }, [isAuthenticated, returnTo, navigate]);
+    if (isAuthenticated) navigate(target, { replace: true });
+  }, [isAuthenticated, target, navigate]);
 
   const handleGoogle = async () => {
     setError(null);
     try {
-      await db.auth.loginWithProvider("google", returnTo);
+      // OAuth returns to /login so this page can route by role: admins to the
+      // dashboard, everyone else back to their original (non-admin) page.
+      await db.auth.loginWithProvider(
+        "google",
+        `/login?returnTo=${encodeURIComponent(returnTo)}`,
+      );
     } catch (err) {
       setError(err?.message || "Could not start Google sign-in. Please try again.");
     }

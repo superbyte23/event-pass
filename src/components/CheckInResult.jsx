@@ -1,12 +1,16 @@
 import { useEffect, useState } from "react";
 
 import { db } from "@/api/db";
+import { useAuth } from "@/lib/AuthContext";
+import Avatar from "@/components/Avatar";
 import { RegStatusBadge } from "@/components/StatusBadge";
 import { formatDateTime } from "@/lib/event-utils";
+import { resolveAttendeeProfile } from "@/lib/attendee";
 import { cn } from "@/lib/utils";
 import { AlertCircle, CheckCircle2, Loader2, UserCheck } from "lucide-react";
 
 export default function CheckInResult({ result, error, busy }) {
+  const { user } = useAuth();
   const reg = result?.registration;
   const [event, setEvent] = useState(null);
   const [guest, setGuest] = useState(null);
@@ -15,13 +19,13 @@ export default function CheckInResult({ result, error, busy }) {
     setEvent(null);
     setGuest(null);
     if (!reg) return;
-    db.entities.Event.get(reg.event_id).then(setEvent).catch(() => setEvent(null));
-    if (reg.user_id) {
-      db.entities.User.get(reg.user_id).then(setGuest).catch(() => setGuest(null));
-    } else {
-      setGuest({ full_name: reg.guest_name, email: reg.guest_email, image: null });
-    }
-  }, [reg?.id]);
+    let alive = true;
+    db.entities.Event.get(reg.event_id).then((e) => { if (alive) setEvent(e); }).catch(() => { if (alive) setEvent(null); });
+    resolveAttendeeProfile(reg, user)
+      .then((profile) => { if (alive) setGuest(profile); })
+      .catch(() => { if (alive) setGuest(null); });
+    return () => { alive = false; };
+  }, [reg, user]);
 
   if (busy) {
     return (
@@ -60,11 +64,12 @@ export default function CheckInResult({ result, error, busy }) {
       </div>
 
       <div className="mt-4 flex items-center gap-4">
-        {guest?.image ? (
-          <img src={guest.image} alt="" className="h-12 w-12 rounded-full object-cover" />
-        ) : (
-          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-lg font-semibold text-primary-foreground">{(name || "?").charAt(0)}</span>
-        )}
+        <Avatar
+          src={guest?.image}
+          name={name}
+          className="h-12 w-12"
+          fallbackClassName="text-lg"
+        />
         <div className="min-w-0">
           <div className="font-semibold truncate">{name}</div>
           <div className="text-sm text-muted-foreground truncate">{email || event?.name || ""}</div>

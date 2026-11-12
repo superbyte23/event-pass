@@ -18,7 +18,10 @@ function shortCode() {
 }
 
 export async function getMyRegistrationForEvent(eventId, userId) {
-  const list = await db.entities.Registration.filter({ event_id: eventId, user_id: userId });
+  if (!userId) return null;
+  // Session-scoped query: also finds guest tickets created with this email,
+  // so an admin (or any account) can hold a guest ticket for an event.
+  const list = await db.entities.Registration.mine(eventId);
   const active = (list || []).filter((r) => r.status !== "cancelled");
   return active.length > 0 ? active[0] : null;
 }
@@ -130,6 +133,17 @@ export async function registerGuestForEvent(event, guest, responses = {}) {
   if (regStart && now < regStart) return { error: "Registration has not opened yet." };
   if (regEnd && now > regEnd) return { error: "Registration is closed for this event." };
 
+  // Extract guest name from form responses (first text/email field that looks like a name)
+  let guestName = null;
+  const fields = event.form_fields || [];
+  for (const f of fields) {
+    const val = responses[f.id];
+    if (val && (f.type === "text" || f.type === "email" || f.label.toLowerCase().includes("name"))) {
+      guestName = Array.isArray(val) ? val.join(" ") : String(val);
+      break;
+    }
+  }
+
   // 3. Create the guest registration (no user account)
   const year = event.date ? new Date(event.date).getFullYear() : now.getFullYear();
   const registrationNumber = `REG-${year}-${shortCode()}`;
@@ -141,6 +155,7 @@ export async function registerGuestForEvent(event, guest, responses = {}) {
       event_id: event.id,
       event_name: event.name,
       guest_email: email,
+      guest_name: guestName,
       registration_number: registrationNumber,
       qr_token: qrToken,
       status: "confirmed",
