@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 
 import { useAuth } from "@/lib/AuthContext";
 import SiteNav from "@/components/SiteNav";
+import { ServerErrorPage } from "@/components/ErrorPage";
 import { Image } from "@/components/ui/image";
 import { EventStatusBadge, RegStatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
@@ -14,10 +15,14 @@ import { Ticket as TicketIcon, CalendarDays, Clock, MapPin, ArrowRight, Trash2, 
 export default function MyEvents() {
   const { user } = useAuth();
   const [items, setItems] = useState(null);
+  const [loadError, setLoadError] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   useEffect(() => {
     let alive = true;
+    setItems(null);
+    setLoadError(null);
     (async () => {
       try {
         // Server-scoped by the session: includes guest tickets registered with
@@ -30,12 +35,12 @@ export default function MyEvents() {
         setItems(
           (regs || []).map((r, i) => ({ registration: r, event: events[i] })).filter((x) => x.event)
         );
-      } catch {
-        if (alive) setItems([]);
+      } catch (error) {
+        if (alive) setLoadError(error);
       }
     })();
     return () => { alive = false; };
-  }, [user?.id]);
+  }, [user?.id, reloadKey]);
 
   const handleDelete = async (registrationId) => {
     try {
@@ -53,6 +58,16 @@ export default function MyEvents() {
       setDeleteConfirm(null);
     }
   };
+
+  if (loadError) {
+    return (
+      <ServerErrorPage
+        title="We couldn't load your tickets"
+        description="Your registrations couldn't be fetched just now. Please try again."
+        onRetry={() => setReloadKey((key) => key + 1)}
+      />
+    );
+  }
 
   return (
     <>

@@ -49,4 +49,4 @@ public/uploads/
 admin-user.txt
 
 # Local tool settings
-.claude/settings.local.json
+.claude/

@@ -97,13 +97,17 @@ export async function getGuestRegistrationForEvent(eventId, email) {
   return active.length > 0 ? active[0] : null;
 }
 
-// Email-based lookup for guests (no account). Posts to the server endpoint,
-// which only returns profile-less registrations for that email.
-export async function findGuestTickets({ email, eventId } = {}) {
+// Email-or-name lookup for guests (no account). Posts to the server endpoint,
+// which only returns profile-less registrations matching the given value.
+/**
+ * @param {{ query?: string, email?: string, eventId?: string }} [options]
+ */
+export async function findGuestTickets({ query, email, eventId } = {}) {
+  const value = String(query ?? email ?? "").trim();
   const res = await fetch(`/api/guest-tickets`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: String(email || "").trim(), event_id: eventId || undefined }),
+    body: JSON.stringify({ query: value, event_id: eventId || undefined }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {

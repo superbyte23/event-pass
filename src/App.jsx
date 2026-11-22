@@ -4,6 +4,7 @@ import { queryClientInstance } from '@/lib/query-client'
 import { BrowserRouter as Router, Route, Routes, Navigate, useLocation } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
+import { UnauthorizedPage } from '@/components/ErrorPage';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ScrollToTop from './components/ScrollToTop';
 // Add page imports here
@@ -36,7 +37,7 @@ function LoginRedirect() {
 }
 
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
+  const { isLoadingAuth, isLoadingPublicSettings, authError } = useAuth();
 
   // Show loading spinner while checking app public settings or auth
   if (isLoadingPublicSettings || isLoadingAuth) {
@@ -52,9 +53,7 @@ const AuthenticatedApp = () => {
     if (authError.type === 'user_not_registered') {
       return <UserNotRegisteredError />;
     } else if (authError.type === 'auth_required') {
-      // Redirect to login automatically
-      navigateToLogin();
-      return null;
+      return <UnauthorizedPage />;
     }
   }
 
@@ -75,8 +74,21 @@ const AuthenticatedApp = () => {
         <Route path="/profile" element={<Profile />} />
       </Route>
 
-      {/* Tickets are public — accessed by registration id; RLS gates the record */}
-      <Route path="/tickets/:registration" element={<Ticket />} />
+      {/* Guests can look up tickets, but opening one requires an account. */}
+      <Route
+        element={
+          <ProtectedRoute
+            unauthenticatedElement={
+              <UnauthorizedPage
+                title="Sign in to view this ticket"
+                description="You can search for your ticket as a guest, but you need to sign in to open it."
+              />
+            }
+          />
+        }
+      >
+        <Route path="/tickets/:registration" element={<Ticket />} />
+      </Route>
 
       {/* Admin */}
       <Route element={<AdminRoute />}>
@@ -105,7 +117,7 @@ function App() {
   return (
     <AuthProvider>
       <QueryClientProvider client={queryClientInstance}>
-        <Router>
+        <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <ScrollToTop />
           <AuthenticatedApp />
         </Router>

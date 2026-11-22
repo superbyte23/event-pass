@@ -278,19 +278,28 @@ export async function getEntity(entity, id, user) {
   return serialized;
 }
 
-// Guest ticket lookup by email. Guests have no account, so their only claim
-// to a ticket is the email used at registration. This intentionally returns
-// only profile-less rows (user_id null) — signed-in users' tickets stay
-// private behind their own accounts.
-export async function listGuestTickets(email, eventId) {
-  const normalized = String(email || '').trim().toLowerCase();
-  if (!normalized) throw new ApiError(400, 'Email is required.');
+// Guest ticket lookup by the email or name used at registration. Guests have
+// no account, so those are the only claims they have to a ticket. This returns
+// only profile-less rows (user_id null) — signed-in users' tickets stay behind
+// their own accounts.
+export async function listGuestTickets(query, eventId) {
+  const value = String(query || '').trim();
+  const normalized = value.toLowerCase();
+  if (!normalized) throw new ApiError(400, 'Enter the email or name you registered with.');
   if (eventId && typeof eventId !== 'string') throw new ApiError(400, 'event_id must be a string.');
+
+  const emailLike = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  if (!emailLike && normalized.length < 2) {
+    throw new ApiError(400, 'Enter an email or at least 2 characters of the name.');
+  }
+
   await connectDb();
+  const field = emailLike ? 'guest_email' : 'guest_name';
+  const pattern = emailLike ? `^${escapeRegExp(normalized)}$` : escapeRegExp(value);
   const conditions = {
     user_id: null,
     status: { $ne: 'cancelled' },
-    guest_email: { $regex: new RegExp(`^${escapeRegExp(normalized)}$`, 'i') },
+    [field]: { $regex: new RegExp(pattern, 'i') },
   };
   if (eventId) conditions.event_id = eventId;
   const rows = await Registration.find(conditions)
@@ -301,6 +310,7 @@ export async function listGuestTickets(email, eventId) {
     id: String(r._id),
     event_id: r.event_id,
     event_name: r.event_name,
+    guest_name: r.guest_name || null,
     registration_number: r.registration_number,
     status: r.status,
     created_date: r.created_date,

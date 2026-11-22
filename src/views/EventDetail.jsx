@@ -5,6 +5,7 @@ import { useParams, Link } from "react-router-dom";
 
 import { useAuth } from "@/lib/AuthContext";
 import SiteNav from "@/components/SiteNav";
+import { NotFoundPage } from "@/components/ErrorPage";
 import { Image } from "@/components/ui/image";
 import { EventStatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
@@ -56,16 +57,7 @@ export default function EventDetail() {
   }
 
   if (event === null) {
-    return (
-      <div className="min-h-screen bg-background">
-        <SiteNav />
-        <div className="mx-auto max-w-xl px-4 py-24 text-center">
-          <h1 className="text-3xl font-semibold">Event not found</h1>
-          <p className="mt-2 text-muted-foreground">This event may have been removed or is no longer public.</p>
-          <Button asChild className="mt-6"><Link to="/events">Browse events</Link></Button>
-        </div>
-      </div>
-    );
+    return <NotFoundPage title="Event not found" description="This event may have been removed or is no longer public." />;
   }
 
   const accent = event.accent_color || "#0f172a";

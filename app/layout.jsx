@@ -4,7 +4,7 @@ export const metadata = {
   title: 'EventPass — Event Registration & QR Tickets',
   description:
     'EventPass — register for events with Google and get a digital QR ticket instantly.',
-  icons: { icon: 'https://db.com/logo_v2.svg' },
+  icons: { icon: '/favicon.svg' },
 };
 
 export const viewport = {

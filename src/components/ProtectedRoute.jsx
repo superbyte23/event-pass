@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
+import { ServerErrorPage, UnauthorizedPage } from '@/components/ErrorPage';
 
 const DefaultFallback = () => (
   <div className="fixed inset-0 flex items-center justify-center">
@@ -9,7 +10,7 @@ const DefaultFallback = () => (
   </div>
 );
 
-export default function ProtectedRoute({ fallback = <DefaultFallback />, unauthenticatedElement }) {
+export default function ProtectedRoute({ fallback = <DefaultFallback />, unauthenticatedElement = <UnauthorizedPage /> }) {
   const { isAuthenticated, isLoadingAuth, authChecked, authError, checkUserAuth } = useAuth();
 
   useEffect(() => {
@@ -25,6 +26,9 @@ export default function ProtectedRoute({ fallback = <DefaultFallback />, unauthe
   if (authError) {
     if (authError.type === 'user_not_registered') {
       return <UserNotRegisteredError />;
+    }
+    if (authError.type !== 'auth_required') {
+      return <ServerErrorPage description={authError.message || 'We could not verify your session. Please try again.'} />;
     }
     return unauthenticatedElement;
   }

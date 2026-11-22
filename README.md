@@ -59,6 +59,8 @@ flowchart LR
 | **User** | Self or admin | Admin only |
 | **Setting** | Public | Admin only |
 
+Guests can search for tickets by email or name (`/find-ticket`), but opening a ticket (`/tickets/:registration`) requires a signed-in account; the API denies anonymous ticket reads as well.
+
 ---
 
 ## 🚀 Quickstart
@@ -91,9 +93,9 @@ npm run dev                  # http://localhost:3000
 
 ## 🧭 Routes
 
-**Public:** `/` · `/events` · `/events/:slug` · `/register/:slug` · `/login` · `/find-ticket` · `/tickets/:registration` · `/checkin/:qrToken` (admin-gated auto check-in)
+**Public:** `/` · `/events` · `/events/:slug` · `/register/:slug` · `/login` · `/find-ticket` · `/checkin/:qrToken` (admin-gated auto check-in)
 
-**Account:** `/my-events` · `/profile`
+**Account:** `/my-events` · `/profile` · `/tickets/:registration`
 
 **Admin:** `/admin` · `/admin/events` (+ `/create`, `/:event`, `/:event/edit`, `/:event/registrations`) · `/admin/registrations/:registration` · `/admin/checkin` (QR scanner) · `/admin/settings`
 

@@ -1,12 +1,13 @@
 import { db } from "@/api/db";
 
 import { useEffect, useState } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 
 import { useAuth } from "@/lib/AuthContext";
 import Avatar from "@/components/Avatar";
 import SiteNav from "@/components/SiteNav";
 import QRCode from "@/components/QRCode";
+import { ForbiddenPage, NotFoundPage, ServerErrorPage, UnauthorizedPage } from "@/components/ErrorPage";
 import { RegStatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Image } from "@/components/ui/image";
@@ -21,9 +22,14 @@ export default function Ticket() {
   const [reg, setReg] = useState(undefined);
   const [event, setEvent] = useState(undefined);
   const [guest, setGuest] = useState(null);
+  const [loadError, setLoadError] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let alive = true;
+    setReg(undefined);
+    setEvent(undefined);
+    setLoadError(null);
     (async () => {
       try {
         const r = await db.entities.Registration.get(registration);
@@ -37,30 +43,59 @@ export default function Ticket() {
           const e = await db.entities.Event.get(r.event_id);
           if (alive) setEvent(e);
         } catch { if (alive) setEvent(null); }
-      } catch {
-        if (alive) setReg(null);
+      } catch (error) {
+        if (alive) {
+          setReg(null);
+          setLoadError(error);
+        }
       }
     })();
     return () => { alive = false; };
-  }, [registration, user]);
+  }, [registration, user, reloadKey]);
 
-  if (reg === undefined || event === undefined) {
+  if (reg === undefined || (reg && event === undefined)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="w-7 h-7 animate-spin text-muted-foreground" />
       </div>
     );
   }
-  if (reg === null) {
+
+  // Ticket links require an account, but a failed load is still reported by
+  // status instead of collapsing every failure into "not found".
+  if (loadError || reg === null) {
+    const status = loadError?.status;
+    if (status === 401) {
+      return (
+        <UnauthorizedPage
+          title="Sign in to view this ticket"
+          description="This ticket is tied to a signed-in session. Sign in and we'll bring you straight back to it."
+          returnTo={`/tickets/${registration}`}
+        />
+      );
+    }
+    if (status === 403) {
+      return (
+        <ForbiddenPage
+          title="You can't view this ticket"
+          description="You don't have access to this registration. Check the link, or sign in with the account used to register."
+        />
+      );
+    }
+    if (status === 404 || reg === null) {
+      return (
+        <NotFoundPage
+          title="Ticket not found"
+          description="This ticket may have been cancelled, or the link might be incomplete. You can look up guest tickets with the email or name you registered with."
+        />
+      );
+    }
     return (
-      <div className="min-h-screen bg-background">
-        <SiteNav />
-        <div className="mx-auto max-w-xl px-4 py-24 text-center">
-          <h1 className="text-2xl font-semibold">Ticket not found</h1>
-          <p className="mt-2 text-muted-foreground">This ticket may have been cancelled or doesn't belong to your account.</p>
-          <Button asChild className="mt-6"><Link to={user ? "/my-events" : "/events"}>{user ? "My tickets" : "Browse events"}</Link></Button>
-        </div>
-      </div>
+      <ServerErrorPage
+        title="We couldn't load this ticket"
+        description="Something went wrong while fetching your ticket. Please try again."
+        onRetry={() => setReloadKey((key) => key + 1)}
+      />
     );
   }
 

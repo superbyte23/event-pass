@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 
 import SiteNav from "@/components/SiteNav";
+import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,7 +11,7 @@ import { findGuestTickets } from "@/lib/registration";
 import { db } from "@/api/db";
 import { Search, Ticket as TicketIcon, Loader2, ArrowLeft, MailWarning } from "lucide-react";
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MIN_QUERY_LENGTH = 2;
 
 function formatDate(iso) {
   if (!iso) return "";
@@ -22,13 +23,14 @@ function formatDate(iso) {
 }
 
 export default function FindTicket() {
+  const { isAuthenticated } = useAuth();
   const [params] = useSearchParams();
   const eventSlug = params.get("event") || "";
-  const prefillEmail = params.get("email") || "";
+  const prefillQuery = params.get("query") || params.get("email") || params.get("name") || "";
 
   const [events, setEvents] = useState([]);
   const [eventId, setEventId] = useState(null);
-  const [email, setEmail] = useState(prefillEmail);
+  const [query, setQuery] = useState(prefillQuery);
   const [results, setResults] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -49,15 +51,15 @@ export default function FindTicket() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const value = email.trim();
-    if (!value) { setError("Enter the email you registered with."); return; }
-    if (!EMAIL_RE.test(value)) { setError("Enter a valid email address."); return; }
+    const value = query.trim();
+    if (!value) { setError("Enter the email or name you registered with."); return; }
+    if (value.length < MIN_QUERY_LENGTH) { setError("Enter an email or at least 2 characters of your name."); return; }
     setError("");
     setLoading(true);
     try {
-      const tickets = await findGuestTickets({ email: value, eventId });
+      const tickets = await findGuestTickets({ query: value, eventId });
       setResults(tickets);
-      try { localStorage.setItem("eventpass.guestEmail", value); } catch { /* ignore */ }
+      try { localStorage.setItem("eventpass.guestQuery", value); } catch { /* ignore */ }
     } catch (err) {
       setResults([]);
       setError(err?.message || "Could not look up your tickets.");
@@ -77,20 +79,22 @@ export default function FindTicket() {
         <div className="mt-6">
           <h1 className="text-3xl font-bold tracking-tight">Find your tickets</h1>
           <p className="mt-2 text-muted-foreground">
-            Enter the email you registered with {events.length > 0 ? `for ${events[0].name}` : "with"} — we&apos;ll pull up your
-            guest tickets.
+            Enter the email or name you registered with{events.length > 0 ? ` for ${events[0].name}` : ""} — we&apos;ll pull up
+            your guest tickets.
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-end">
           <div className="flex-1">
-            <Label htmlFor="find-ticket-email">Email</Label>
+            <Label htmlFor="find-ticket-query">Email or name</Label>
             <Input
-              id="find-ticket-email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
+              id="find-ticket-query"
+              name="query"
+              type="text"
+              autoComplete="off"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="you@example.com or Jane Doe"
               className="mt-1.5"
             />
           </div>
@@ -106,12 +110,18 @@ export default function FindTicket() {
             <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
               {results.length === 0 ? "No tickets found" : `${results.length} ticket${results.length === 1 ? "" : "s"}`}
             </h2>
+            {results.length > 0 && !isAuthenticated && (
+              <p className="mt-2 text-sm text-muted-foreground">
+                Guest lookup shows matches only — sign in to open a ticket.
+              </p>
+            )}
 
             {results.length === 0 ? (
               <div className="mt-4 rounded-2xl border border-dashed border-border bg-card p-8 text-center">
                 <MailWarning className="mx-auto h-10 w-10 text-muted-foreground/40" />
                 <p className="mt-3 text-muted-foreground">
-                  No guest tickets were found for <span className="font-medium text-foreground">{email.trim()}</span>.
+                  No guest tickets were found for <span className="font-medium text-foreground">{query.trim()}</span>. Try the
+                  other value if you registered with a different email or name.
                 </p>
                 <div className="mt-5 flex items-center justify-center gap-3">
                   {eventSlug && (
@@ -134,6 +144,7 @@ export default function FindTicket() {
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-semibold">{reg.event_name || "Event"}</p>
                       <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
+                        {reg.guest_name && <span>{reg.guest_name}</span>}
                         <span className="font-mono">{reg.registration_number}</span>
                         <RegStatusBadge status={reg.status} />
                         {formatDate(reg.created_date) && <span>{formatDate(reg.created_date)}</span>}
