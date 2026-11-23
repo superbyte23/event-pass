@@ -9,10 +9,10 @@ const nextConfig = {
   outputFileTracingRoot: __dirname,
   // Native image renderer used for downloadable/embedded ticket images.
   serverExternalPackages: ["sharp"],
-  // Keep `next dev` and `next build` from writing the same .next directory.
-  // Running a build while the dev server is up corrupts its route manifest
-  // (the intermittent "no direct app page entry found for /_not-found" crash).
-  distDir: process.env.NODE_ENV === "production" ? ".next-build" : ".next",
+  // Vercel expects the default `.next` output directory. Only local builds
+  // started with `npm run build:local` use `.next-build`, so they can run next
+  // to `next dev` without corrupting its route manifest.
+  distDir: process.env.LOCAL_BUILD_DIR === "1" ? ".next-build" : ".next",
 };
 
 export default nextConfig;
