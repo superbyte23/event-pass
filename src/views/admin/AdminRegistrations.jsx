@@ -9,14 +9,16 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { RegStatusBadge } from "@/components/StatusBadge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { fieldHasOptions, formatDateShort, formatDateTime, qrCheckinUrl } from "@/lib/event-utils";
-import QRCode from "@/components/QRCode";
-import { ArrowLeft, Search, Eye, Ticket as TicketIcon, ChevronLeft, ChevronRight, Download, Upload, Loader2, ScanLine, Trash2, CheckCheck, XCircle, RefreshCw, X, FileText } from "lucide-react";
+import { fieldHasOptions, formatDateShort, formatDateTime } from "@/lib/event-utils";
+import TicketPreviewModal from "@/components/TicketPreviewModal";
+import BulkTicketEmailDialog from "@/components/BulkTicketEmailDialog";
+import { ArrowLeft, Search, Eye, ChevronLeft, ChevronRight, Download, Upload, Loader2, ScanLine, Trash2, CheckCheck, XCircle, RefreshCw, X, FileText, Mail } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useAuth } from "@/lib/AuthContext";
 
-const PAGE_SIZE = 10;
+const DEFAULT_PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100, 200, 0]; // 0 = show all
 const IMPORT_CHUNK_SIZE = 50;
 const IMPORT_YIELD_EVERY = 25;
 
@@ -27,6 +29,23 @@ const IMPORT_ROW_STATUS = {
   skipped: { label: "Skipped", dot: "bg-amber-500", text: "text-amber-600" },
   failed: { label: "Failed", dot: "bg-rose-500", text: "text-rose-600" },
 };
+
+const EMAIL_STATUS_META = {
+  sent: { label: "Sent", className: "text-emerald-600 bg-emerald-50 border-emerald-200" },
+  failed: { label: "Failed", className: "text-rose-600 bg-rose-50 border-rose-200" },
+  skipped: { label: "Skipped", className: "text-amber-600 bg-amber-50 border-amber-200" },
+  sending: { label: "Sending", className: "text-sky-600 bg-sky-50 border-sky-200" },
+  not_sent: { label: "Not sent", className: "text-muted-foreground bg-muted/40 border-border" },
+};
+
+function EmailStatusBadge({ status }) {
+  const meta = EMAIL_STATUS_META[status] || EMAIL_STATUS_META.not_sent;
+  return (
+    <span className={`inline-flex whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium ${meta.className}`}>
+      {meta.label}
+    </span>
+  );
+}
 
 function FileUploadZone({ file, onFileSelect, onFileRemove, disabled, accept }) {
   const [isDragOver, setIsDragOver] = useState(false);
@@ -151,6 +170,7 @@ export default function AdminRegistrations() {
   const [fieldFilterValue, setFieldFilterValue] = useState("");
   const [sortKey, setSortKey] = useState("date_desc");
   const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const { toast } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
@@ -164,6 +184,7 @@ export default function AdminRegistrations() {
   const [allowDuplicateEmails, setAllowDuplicateEmails] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [importFile, setImportFile] = useState(null);
+  const [bulkMailOpen, setBulkMailOpen] = useState(false);
 
   const openImportModal = () => {
     setImportProgress(null);
@@ -187,7 +208,7 @@ export default function AdminRegistrations() {
     });
   };
 
-  const [modalReg, setModalReg] = useState(null);
+  const [ticketReg, setTicketReg] = useState(null);
 
   const toggleSelectAll = () => {
     const allPageSelected = pageRows.length > 0 && pageRows.every(({ reg }) => selectedIds.has(reg.id));
@@ -247,7 +268,7 @@ export default function AdminRegistrations() {
       });
       const refreshed = await db.entities.Registration.filter({ event_id: eventId });
       setRegs(refreshed || []);
-      setModalReg(res); // Update modal with fresh data
+      setTicketReg(res); // Update modal with fresh data
       toast({ title: "Checked in successfully" });
     } catch (err) {
       toast({ variant: "destructive", title: "Check-in failed", description: err?.message });
@@ -269,7 +290,7 @@ export default function AdminRegistrations() {
       const res = await db.entities.Registration.update(regId, { status: 'cancelled' });
       const refreshed = await db.entities.Registration.filter({ event_id: eventId });
       setRegs(refreshed || []);
-      setModalReg(res); // Update modal with fresh data
+      setTicketReg(res); // Update modal with fresh data
       toast({ title: "Registration cancelled" });
     } catch (err) {
       toast({ variant: "destructive", title: "Cancel failed", description: err?.message });
@@ -291,7 +312,7 @@ export default function AdminRegistrations() {
       const res = await db.entities.Registration.update(regId, { status: 'confirmed', checked_in_at: null, checked_in_by: null });
       const refreshed = await db.entities.Registration.filter({ event_id: eventId });
       setRegs(refreshed || []);
-      setModalReg(res);
+      setTicketReg(res);
       toast({ title: "Registration restored" });
     } catch (err) {
       toast({ variant: "destructive", title: "Restore failed", description: err?.message });
@@ -349,9 +370,14 @@ export default function AdminRegistrations() {
   const fieldFilter = formFields.find((f) => f.id === fieldFilterId);
   const fieldFilterHasOptions = fieldFilter ? fieldHasOptions(fieldFilter.type) : false;
 
-  const pageCount = rows ? Math.max(1, Math.ceil(rows.length / PAGE_SIZE)) : 1;
+  const effectivePageSize = pageSize > 0 ? pageSize : rows?.length || 1;
+  const pageCount = rows ? Math.max(1, Math.ceil(rows.length / effectivePageSize)) : 1;
   const currentPage = Math.min(page, pageCount - 1);
-  const pageRows = rows ? rows.slice(currentPage * PAGE_SIZE, currentPage * PAGE_SIZE + PAGE_SIZE) : [];
+  const pageRows = rows
+    ? pageSize > 0
+      ? rows.slice(currentPage * pageSize, currentPage * pageSize + pageSize)
+      : rows
+    : [];
   const pageIds = pageRows.map(({ reg }) => reg.id);
   const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
   const somePageSelected = pageIds.some((id) => selectedIds.has(id));
@@ -670,6 +696,11 @@ export default function AdminRegistrations() {
             <Button size="sm" asChild aria-label="Scan QR"><Link to="/admin/checkin"><ScanLine className="w-3.5 h-3.5" /></Link></Button>
             <Button size="sm" variant="outline" onClick={exportCsv} disabled={!rows || rows.length === 0} aria-label="Export CSV"><Download className="w-3.5 h-3.5" /></Button>
             {selectedIds.size > 0 && (
+              <Button size="sm" variant="outline" onClick={() => setBulkMailOpen(true)} aria-label={`Email ${selectedIds.size} tickets`}>
+                <Mail className="w-3.5 h-3.5" />
+              </Button>
+            )}
+            {selectedIds.size > 0 && (
               <Button size="sm" variant="destructive" onClick={handleBulkDelete} disabled={deleting} aria-label={`Delete ${selectedIds.size}`}>
                 {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
               </Button>
@@ -690,6 +721,11 @@ export default function AdminRegistrations() {
             {importing ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Upload className="w-3.5 h-3.5 mr-1" />} Import CSV
           </Button>
           <Button size="sm" variant="outline" onClick={exportCsv} disabled={!rows || rows.length === 0}><Download className="w-3.5 h-3.5 mr-1" /> Export CSV</Button>
+          {selectedIds.size > 0 && (
+            <Button size="sm" variant="outline" onClick={() => setBulkMailOpen(true)}>
+              <Mail className="w-3.5 h-3.5 mr-1" /> Email {selectedIds.size}
+            </Button>
+          )}
           {selectedIds.size > 0 && (
             <Button size="sm" variant="destructive" onClick={handleBulkDelete} disabled={deleting}>
               {deleting ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Trash2 className="w-3.5 h-3.5 mr-1" />}
@@ -729,7 +765,7 @@ export default function AdminRegistrations() {
                 setPage(0);
               }}
             >
-              <SelectTrigger className="w-full sm:w-44">
+              <SelectTrigger className="w-full sm:w-56">
                 <SelectValue placeholder="Filter by field" />
               </SelectTrigger>
               <SelectContent>
@@ -744,7 +780,7 @@ export default function AdminRegistrations() {
                 value={fieldFilterValue || "all"}
                 onValueChange={(v) => { setFieldFilterValue(v === "all" ? "" : v); setPage(0); }}
               >
-                <SelectTrigger className="w-full sm:w-44">
+                <SelectTrigger className="w-full sm:w-64 lg:w-72">
                   <SelectValue placeholder={`Any ${fieldFilter.label || "value"}`} />
                 </SelectTrigger>
                 <SelectContent>
@@ -756,7 +792,7 @@ export default function AdminRegistrations() {
               </Select>
             )}
             {fieldFilter && !fieldFilterHasOptions && (
-              <div className="relative w-full sm:w-48">
+              <div className="relative w-full sm:w-64 lg:w-72">
                 <Input
                   value={fieldFilterValue}
                   onChange={(e) => { setFieldFilterValue(e.target.value); setPage(0); }}
@@ -812,15 +848,16 @@ export default function AdminRegistrations() {
                   ))}
                   <th className="px-4 py-3 font-medium">Registered</th>
                   <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 font-medium">Email</th>
                   <th className="px-4 py-3 font-medium">Check-in</th>
                   <th className="px-4 py-3 font-medium text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {rows === null ? (
-                  <tr><td colSpan={7 + tableFields.length} className="px-4 py-10 text-center text-muted-foreground">Loading…</td></tr>
+                  <tr><td colSpan={8 + tableFields.length} className="px-4 py-10 text-center text-muted-foreground">Loading…</td></tr>
                 ) : pageRows.length === 0 ? (
-                  <tr><td colSpan={7 + tableFields.length} className="px-4 py-10 text-center text-muted-foreground">No registrations found.</td></tr>
+                  <tr><td colSpan={8 + tableFields.length} className="px-4 py-10 text-center text-muted-foreground">No registrations found.</td></tr>
                 ) : pageRows.map(({ reg, user }) => {
                   const displayEmail = user?.email || reg.guest_email;
                   return (
@@ -848,11 +885,11 @@ export default function AdminRegistrations() {
                       ))}
                       <td className="px-4 py-3 text-muted-foreground">{reg.created_date ? formatDateShort(reg.created_date) : "—"}</td>
                       <td className="px-4 py-3"><RegStatusBadge status={reg.status} /></td>
+                      <td className="px-4 py-3"><EmailStatusBadge status={reg.email_status} /></td>
                       <td className="px-4 py-3 text-xs">{reg.checked_in_at ? formatDateTime(reg.checked_in_at) : <span className="text-muted-foreground">Not checked in</span>}</td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex justify-end gap-1.5">
-                          <Button size="sm" variant="outline" onClick={() => setModalReg(reg)}><Eye className="w-3.5 h-3.5" /></Button>
-                          <Button asChild size="sm" variant="ghost"><Link to={`/tickets/${reg.id}`}><TicketIcon className="w-3.5 h-3.5" /></Link></Button>
+                          <Button size="sm" variant="outline" onClick={() => setTicketReg(reg)}><Eye className="w-3.5 h-3.5" /></Button>
                         </div>
                       </td>
                     </tr>
@@ -886,6 +923,7 @@ export default function AdminRegistrations() {
                         <div className="flex items-center gap-3 flex-wrap">
                           <span className="font-mono text-xs font-medium">{reg.registration_number}</span>
                           <RegStatusBadge status={reg.status} />
+                          <EmailStatusBadge status={reg.email_status} />
                         </div>
                         <div className="text-sm truncate text-foreground">{displayEmail || "—"}</div>
                         <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
@@ -906,7 +944,7 @@ export default function AdminRegistrations() {
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8"
-                        onClick={() => setModalReg(reg)}
+                        onClick={() => setTicketReg(reg)}
                         aria-label="View details"
                       >
                         <ChevronRight className="w-4 h-4" />
@@ -920,10 +958,33 @@ export default function AdminRegistrations() {
 
         </div>
 
-        {rows && rows.length > PAGE_SIZE && (
-          <div className="flex items-center justify-between border-t border-border px-4 py-3 text-sm">
-            <span className="text-muted-foreground">Page {currentPage + 1} of {pageCount} · {rows.length} registrations</span>
-            <div className="flex gap-1.5">
+        {rows && rows.length > 0 && (
+          <div className="flex flex-col gap-3 border-t border-border px-4 py-3 text-sm sm:grid sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center">
+            <span className="text-muted-foreground">
+              Page {currentPage + 1} of {pageCount} · {rows.length} registrations
+            </span>
+            <div className="flex items-center gap-2 sm:justify-center">
+              <span className="hidden text-muted-foreground md:inline">Rows per page</span>
+              <Select
+                value={pageSize}
+                onValueChange={(value) => {
+                  setPageSize(Number(value));
+                  setPage(0);
+                }}
+              >
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PAGE_SIZE_OPTIONS.map((size) => (
+                    <SelectItem key={size} value={size}>
+                      {size === 0 ? "Show all" : String(size)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end gap-1.5">
               <Button size="sm" variant="outline" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}><ChevronLeft className="w-4 h-4" /></Button>
               <Button size="sm" variant="outline" disabled={currentPage >= pageCount - 1} onClick={() => setPage(currentPage + 1)}><ChevronRight className="w-4 h-4" /></Button>
             </div>
@@ -931,95 +992,51 @@ export default function AdminRegistrations() {
         )}
       </Card>
       </div>
-      {/* Desktop Modal - shows registration details */}
-      {modalReg && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => !modalAction && setModalReg(null)}>
-          <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto mx-4 md:mx-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-4 border-b">
-              <div className="flex items-center gap-3">
-                <h3 className="font-semibold">{modalReg.registration_number}</h3>
-                <RegStatusBadge status={modalReg.status} />
-              </div>
-              <Button variant="ghost" size="icon" onClick={() => !modalAction && setModalReg(null)} aria-label="Close">
-                <X className="w-4 h-4" />
+      <TicketPreviewModal
+        reg={ticketReg}
+        event={event}
+        guest={users[ticketReg?.user_id] || { full_name: ticketReg?.guest_name, email: ticketReg?.guest_email }}
+        onClose={() => setTicketReg(null)}
+        footer={ticketReg && (
+          <div className="flex flex-wrap gap-2 rounded-2xl bg-white p-4 shadow-lg ring-1 ring-black/5">
+            <Button asChild variant="outline" className="flex-1 min-w-[120px]"><Link to={`/admin/registrations/${ticketReg.id}`} onClick={() => setTicketReg(null)}><Eye className="w-3.5 h-3.5 mr-1" /> Details</Link></Button>
+
+            {ticketReg.status === 'confirmed' && (
+              <Button className="flex-1 min-w-[120px]" onClick={() => handleCheckIn(ticketReg.id)} disabled={modalAction === 'checkin'}>
+                {modalAction === 'checkin' ? <RefreshCw className="w-3.5 h-3.5 mr-1 animate-spin" /> : <CheckCheck className="w-3.5 h-3.5 mr-1" />} Check In
               </Button>
-            </div>
-            <div className="p-4 space-y-4">
-              {/* QR Code / Ticket */}
-              <div className="text-center space-y-2">
-                <p className="text-xs text-muted-foreground">Check-in QR Code</p>
-                <QRCode value={qrCheckinUrl(modalReg.qr_token)} size={180} className="mx-auto" />
-                <p className="text-xs text-muted-foreground font-mono break-all">{qrCheckinUrl(modalReg.qr_token)}</p>
-              </div>
+            )}
 
-              {/* Details */}
-              <div className="space-y-3">
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Email</p>
-                  <p className="font-medium">{(users[modalReg.user_id]?.email || modalReg.guest_email) || "—"}</p>
-                </div>
-                {tableFields.map((f) => {
-                  const val = modalReg.responses?.[f.id];
-                  if (val === undefined || val === null || val === "") return null;
-                  const displayVal = Array.isArray(val) ? val.join(", ") : String(val);
-                  return (
-                    <div key={f.id} className="space-y-1">
-                      <p className="text-xs text-muted-foreground">{f.label}</p>
-                      <p className="font-medium">{displayVal}</p>
-                    </div>
-                  );
-                })}
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Registered</p>
-                  <p className="font-medium">{modalReg.created_date ? formatDateShort(modalReg.created_date) : "—"}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Check-in</p>
-                  <p className="font-medium">{modalReg.checked_in_at ? formatDateTime(modalReg.checked_in_at) : "Not checked in"}</p>
-                </div>
-              </div>
+            {ticketReg.status === 'confirmed' && (
+              <Button variant="destructive" className="flex-1 min-w-[120px]" onClick={() => handleCancel(ticketReg.id)} disabled={modalAction === 'cancel'}>
+                {modalAction === 'cancel' ? <RefreshCw className="w-3.5 h-3.5 mr-1 animate-spin" /> : <XCircle className="w-3.5 h-3.5 mr-1" />} Cancel
+              </Button>
+            )}
 
-              {/* Actions */}
-              <div className="flex flex-wrap gap-2 pt-2 border-t">
-                <Button asChild variant="outline" className="flex-1 min-w-[120px]"><Link to={`/admin/registrations/${modalReg.id}`} onClick={() => setModalReg(null)}><Eye className="w-3.5 h-3.5 mr-1" /> Details</Link></Button>
-                <Button asChild className="flex-1 min-w-[120px]"><Link to={`/tickets/${modalReg.id}`} onClick={() => setModalReg(null)}><TicketIcon className="w-3.5 h-3.5 mr-1" /> Ticket</Link></Button>
-
-                {modalReg.status === 'confirmed' && (
-                  <Button
-                    className="flex-1 min-w-[120px]"
-                    onClick={() => handleCheckIn(modalReg.id)}
-                    disabled={modalAction === 'checkin'}
-                  >
-                    {modalAction === 'checkin' ? <RefreshCw className="w-3.5 h-3.5 mr-1 animate-spin" /> : <CheckCheck className="w-3.5 h-3.5 mr-1" />} Check In
-                  </Button>
-                )}
-
-                {modalReg.status === 'confirmed' && (
-                  <Button
-                    variant="destructive"
-                    className="flex-1 min-w-[120px]"
-                    onClick={() => handleCancel(modalReg.id)}
-                    disabled={modalAction === 'cancel'}
-                  >
-                    {modalAction === 'cancel' ? <RefreshCw className="w-3.5 h-3.5 mr-1 animate-spin" /> : <XCircle className="w-3.5 h-3.5 mr-1" />} Cancel
-                  </Button>
-                )}
-
-                {modalReg.status === 'cancelled' && (
-                  <Button
-                    variant="outline"
-                    className="flex-1 min-w-[120px]"
-                    onClick={() => handleUndoCancel(modalReg.id)}
-                    disabled={modalAction === 'cancel'}
-                  >
-                    {modalAction === 'cancel' ? <RefreshCw className="w-3.5 h-3.5 mr-1 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 mr-1" />} Restore
-                  </Button>
-                )}
-              </div>
-            </div>
+            {ticketReg.status === 'cancelled' && (
+              <Button variant="outline" className="flex-1 min-w-[120px]" onClick={() => handleUndoCancel(ticketReg.id)} disabled={modalAction === 'cancel'}>
+                {modalAction === 'cancel' ? <RefreshCw className="w-3.5 h-3.5 mr-1 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 mr-1" />} Restore
+              </Button>
+            )}
           </div>
-        </div>
-      )}
+        )}
+      />
+      <BulkTicketEmailDialog
+        eventId={eventId}
+        open={bulkMailOpen}
+        onOpenChange={setBulkMailOpen}
+        registrationIds={Array.from(selectedIds)}
+        onCompleted={async () => {
+          try {
+            const refreshed = await db.entities.Registration.filter({ event_id: eventId });
+            setRegs(refreshed || []);
+          } catch {
+            // The batch status is already reflected in the dialog.
+          }
+          setSelectedIds(new Set());
+        }}
+      />
+
       {/* Import CSV Modal */}
       {importModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={closeImportModal}>

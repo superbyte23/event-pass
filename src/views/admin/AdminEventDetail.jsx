@@ -7,8 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Image } from "@/components/ui/image";
 import { EventStatusBadge, RegStatusBadge } from "@/components/StatusBadge";
+import TicketPreviewModal from "@/components/TicketPreviewModal";
+import EventAdminsDialog from "@/components/EventAdminsDialog";
 import { formatDate, formatDateShort, formatDateTime, timeRangeLabel } from "@/lib/event-utils";
-import { Pencil, Users, ExternalLink, Trash2, Eye, ArrowLeft, Globe, GlobeLock, List } from "lucide-react";
+import { Pencil, Users, UserPlus, ExternalLink, Trash2, Eye, ArrowLeft, Globe, GlobeLock, List, Ticket as TicketIcon } from "lucide-react";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 
 export default function AdminEventDetail() {
@@ -17,6 +19,8 @@ export default function AdminEventDetail() {
   const { confirm, close: closeConfirm, ConfirmDialog } = useConfirm();
   const [event, setEvent] = useState(undefined);
   const [regs, setRegs] = useState([]);
+  const [ticketReg, setTicketReg] = useState(null);
+  const [adminsOpen, setAdminsOpen] = useState(false);
 
   const load = () => {
     db.entities.Event.get(eventId).then(setEvent).catch(() => setEvent(null));
@@ -67,6 +71,7 @@ export default function AdminEventDetail() {
         <div className="flex flex-wrap gap-2 p-4">
           <Button asChild size="sm" variant="outline"><Link to={`/admin/events/${event.id}/edit`}><Pencil className="w-3.5 h-3.5 mr-1" /> Edit</Link></Button>
           <Button asChild size="sm" variant="outline"><Link to={`/admin/events/${event.id}/registrations`}><Users className="w-3.5 h-3.5 mr-1" /> Registrations</Link></Button>
+          <Button size="sm" variant="outline" onClick={() => setAdminsOpen(true)}><UserPlus className="w-3.5 h-3.5 mr-1" /> Admins</Button>
           <Button asChild size="sm" variant="outline"><Link to={`/events/${event.slug}`} target="_blank"><ExternalLink className="w-3.5 h-3.5 mr-1" /> Public page</Link></Button>
           <Button size="sm" variant="ghost" onClick={togglePublish}>{event.published ? <><GlobeLock className="w-3.5 h-3.5 mr-1" /> Unpublish</> : <><Globe className="w-3.5 h-3.5 mr-1" /> Publish</>}</Button>
           <Button size="sm" variant="ghost" className="text-rose-600 hover:text-rose-700" onClick={handleDelete}><Trash2 className="w-3.5 h-3.5 mr-1" /> Delete</Button>
@@ -143,6 +148,7 @@ export default function AdminEventDetail() {
                       <td className="px-4 py-2 text-muted-foreground">{r.created_date ? formatDateShort(r.created_date) : "—"}</td>
                       <td className="px-4 py-2"><RegStatusBadge status={r.status} /></td>
                       <td className="px-4 py-2 text-right">
+                        <Button size="sm" variant="ghost" onClick={() => setTicketReg(r)} title="Preview ticket" aria-label="Preview ticket"><TicketIcon className="w-3.5 h-3.5" /></Button>
                         <Button asChild size="sm" variant="ghost"><Link to={`/admin/registrations/${r.id}`}><Eye className="w-3.5 h-3.5" /></Link></Button>
                       </td>
                     </tr>
@@ -153,6 +159,18 @@ export default function AdminEventDetail() {
           </div>
         )}
       </Card>
+      <TicketPreviewModal
+        reg={ticketReg}
+        event={event}
+        guest={ticketReg?.user || { full_name: ticketReg?.guest_name, email: ticketReg?.guest_email }}
+        onClose={() => setTicketReg(null)}
+      />
+      <EventAdminsDialog
+        eventId={event.id}
+        open={adminsOpen}
+        onOpenChange={setAdminsOpen}
+        onChanged={load}
+      />
       {ConfirmDialog}
     </div>
   );

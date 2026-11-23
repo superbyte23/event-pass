@@ -1,23 +1,20 @@
 import { db } from "@/api/db";
 
 import { useEffect, useState } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 
 import { useAuth } from "@/lib/AuthContext";
-import Avatar from "@/components/Avatar";
+import TicketCard from "@/components/TicketCard";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { RegStatusBadge } from "@/components/StatusBadge";
 import { formatDateTime } from "@/lib/event-utils";
 import { resolveAttendeeProfile } from "@/lib/attendee";
-import { ArrowLeft, Ticket as TicketIcon, UserCheck, Undo2, Ban, ExternalLink } from "lucide-react";
+import { ArrowLeft, Ticket as TicketIcon, UserCheck, Undo2, Ban, ExternalLink, CheckCircle2 } from "lucide-react";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 
 export default function AdminRegistrationDetail() {
   const { registration } = useParams();
-  const navigate = useNavigate();
   const { user } = useAuth();
-  const { confirm, close: closeConfirm, ConfirmDialog } = useConfirm();
+  const { confirm, ConfirmDialog } = useConfirm();
   const [reg, setReg] = useState(undefined);
   const [event, setEvent] = useState(null);
   const [guest, setGuest] = useState(null);
@@ -53,69 +50,27 @@ export default function AdminRegistrationDetail() {
   if (reg === null) return <div className="py-20 text-center text-muted-foreground">Registration not found. <Link to="/admin/events" className="text-primary hover:underline">Back</Link></div>;
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="mx-auto max-w-2xl space-y-6 px-4 py-8">
       <Button variant="ghost" size="sm" onClick={() => history.back()}><ArrowLeft className="w-4 h-4 mr-1.5" /> Back</Button>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight font-mono">{reg.registration_number}</h1>
-          <p className="text-sm text-muted-foreground">{event?.name || reg.event_name}</p>
-        </div>
-        <RegStatusBadge status={reg.status} />
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight font-mono">{reg.registration_number}</h1>
+        <p className="text-sm text-muted-foreground">{event?.name || reg.event_name}</p>
       </div>
 
       {reg.status === "checked_in" && (
-        <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-800">
-          <div className="font-medium">Already checked in</div>
-          {reg.checked_in_at && <div className="mt-0.5">Checked in {formatDateTime(reg.checked_in_at)}</div>}
-          {reg.checked_in_by && <div className="text-indigo-600">by staff</div>}
-        </div>
-      )}
-
-      <Card className="p-5">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Guest</h2>
-        <div className="flex items-center gap-4">
-          <Avatar
-            src={guest?.image}
-            name={guest?.full_name}
-            className="h-14 w-14"
-            fallbackClassName="text-lg"
-          />
+        <div className="flex items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-800">
+          <CheckCircle2 className="w-5 h-5 shrink-0" />
           <div>
-            <div className="font-semibold">{guest?.full_name || "Unknown guest"}</div>
-            <div className="text-sm text-muted-foreground">{guest?.email || ""}</div>
+            <div className="font-medium">Already checked in</div>
+            {reg.checked_in_at && <div className="mt-0.5">Checked in {formatDateTime(reg.checked_in_at)}</div>}
+            {reg.checked_in_by && <div className="text-indigo-600">by staff</div>}
           </div>
         </div>
-      </Card>
-
-      <Card className="p-5">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Registration</h2>
-        <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
-          <div><dt className="text-xs uppercase tracking-wide text-muted-foreground">Registration no.</dt><dd className="mt-0.5 font-mono font-medium">{reg.registration_number}</dd></div>
-          <div><dt className="text-xs uppercase tracking-wide text-muted-foreground">Status</dt><dd className="mt-0.5"><RegStatusBadge status={reg.status} /></dd></div>
-          <div><dt className="text-xs uppercase tracking-wide text-muted-foreground">Registered</dt><dd className="mt-0.5">{reg.created_date ? formatDateTime(reg.created_date) : "—"}</dd></div>
-          <div><dt className="text-xs uppercase tracking-wide text-muted-foreground">Checked in</dt><dd className="mt-0.5">{reg.checked_in_at ? formatDateTime(reg.checked_in_at) : "—"}</dd></div>
-          <div><dt className="text-xs uppercase tracking-wide text-muted-foreground">QR token</dt><dd className="mt-0.5 font-mono text-xs break-all">{reg.qr_token}</dd></div>
-        </dl>
-      </Card>
-
-      {event?.form_fields?.length > 0 && (
-        <Card className="p-5">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Registration details</h2>
-          <dl className="space-y-3">
-            {event.form_fields.map((f) => {
-              const val = reg.responses?.[f.id];
-              const display = Array.isArray(val) ? val.join(", ") : (val || "—");
-              return (
-                <div key={f.id}>
-                  <dt className="text-xs uppercase tracking-wide text-muted-foreground">{f.label}</dt>
-                  <dd className="mt-0.5 text-sm whitespace-pre-line">{display}</dd>
-                </div>
-              );
-            })}
-          </dl>
-        </Card>
       )}
+
+      {/* Same ticket UI as the attendee ticket page */}
+      <TicketCard reg={reg} event={event} guest={guest} />
 
       <div className="flex flex-wrap gap-2">
         <Button asChild variant="outline"><Link to={`/tickets/${reg.id}`}><TicketIcon className="w-4 h-4 mr-1.5" /> View ticket</Link></Button>

@@ -9,6 +9,7 @@ export default [
   {
     ignores: [
       '.next/**',
+      '.next-build/**',
       'node_modules/**',
       'dist/**',
       'drizzle/**',

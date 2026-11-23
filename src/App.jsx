@@ -29,6 +29,8 @@ import AdminRegistrations from '@/views/admin/AdminRegistrations';
 import AdminCheckIn from '@/views/admin/AdminCheckIn';
 import CheckInUrl from '@/views/CheckInUrl';
 import AdminRegistrationDetail from '@/views/admin/AdminRegistrationDetail';
+import AdminUsers from '@/views/admin/AdminUsers';
+import AdminMailAccounts from '@/views/admin/AdminMailAccounts';
 import AdminSettings from '@/views/admin/AdminSettings';
 
 function LoginRedirect() {
@@ -101,6 +103,8 @@ const AuthenticatedApp = () => {
           <Route path="/admin/events/:event/registrations" element={<AdminRegistrations />} />
           <Route path="/admin/registrations/:registration" element={<AdminRegistrationDetail />} />
           <Route path="/admin/checkin" element={<AdminCheckIn />} />
+          <Route path="/admin/users" element={<AdminUsers />} />
+          <Route path="/admin/mail-accounts" element={<AdminMailAccounts />} />
           <Route path="/admin/settings" element={<AdminSettings />} />
         </Route>
         {/* Standalone admin-gated page that the ticket QR's `/checkin/<token>` URL lands on */}

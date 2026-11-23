@@ -30,9 +30,18 @@ function modelFor(entity) {
 function readScope(entity, user) {
   switch (entity) {
     case 'Event':
-      // published events are public; admins see their own created events + all published
+      // Published events are public. Admins also see events they created or
+      // were explicitly linked to, including unpublished ones.
       if (!user) return { published: true };
-      if (isAdmin(user)) return { $or: [{ created_by: user.id }, { published: true }] };
+      if (isAdmin(user)) {
+        return {
+          $or: [
+            { created_by: user.id },
+            { linked_admin_ids: user.id },
+            { published: true },
+          ],
+        };
+      }
       return { published: true };
     case 'Registration':
       // admin: everything, signed-in user: their own rows only,
@@ -56,7 +65,11 @@ function canReadRow(entity, row, user) {
   if (isAdmin(user)) {
     switch (entity) {
       case 'Event':
-        return row.created_by === user.id || row.published === true;
+        return (
+          row.created_by === user.id ||
+          (Array.isArray(row.linked_admin_ids) && row.linked_admin_ids.includes(user.id)) ||
+          row.published === true
+        );
       default:
         return true;
     }
@@ -163,6 +176,21 @@ function sanitize(model, data) {
   return out;
 }
 
+// Ticket delivery state is written only by the bulk mail service. Keeping it
+// off the generic entity routes prevents clients from faking "sent" status.
+const REGISTRATION_MAIL_FIELDS = [
+  'email_status',
+  'email_sent_at',
+  'email_error',
+  'email_account_id',
+  'email_attempts',
+];
+
+function stripRegistrationMailFields(payload) {
+  for (const field of REGISTRATION_MAIL_FIELDS) delete payload[field];
+  return payload;
+}
+
 function buildFilter(model, filter) {
   if (filter == null) return null;
   if (typeof filter !== 'object' || Array.isArray(filter)) {
@@ -207,6 +235,7 @@ function mapDbError(error, entity) {
       if (kp.guest_email) return new ApiError(409, 'This email is already registered for this event.');
       if (kp.user_id) return new ApiError(409, 'You are already registered for this event.');
     }
+    if (entity === 'User') return new ApiError(409, 'An account with this email already exists.');
     return new ApiError(400, 'A record with the same unique value already exists.');
   }
   if (error instanceof mongoose.Error.ValidationError) {
@@ -383,7 +412,10 @@ export async function createEntity(entity, data, user) {
   assertCanWrite(entity, user);
   let payload = sanitize(model, data);
   await connectDb();
-  if (entity === 'Registration') payload = await assertRegistrationCreate(payload, user);
+  if (entity === 'Registration') {
+    stripRegistrationMailFields(payload);
+    payload = await assertRegistrationCreate(payload, user);
+  }
   if (entity === 'Event' && user) payload.created_by = user.id;
   try {
     const doc = await model.create(payload);
@@ -412,6 +444,7 @@ export async function bulkCreate(entity, items, user) {
   for (let i = 0; i < payloads.length; i++) {
     let payload = payloads[i];
     if (entity === 'Registration') {
+      stripRegistrationMailFields(payload);
       payload = await assertRegistrationCreate(payload, user, importModes[i]);
     }
     shaped.push(payload);
@@ -484,7 +517,24 @@ export async function updateEntity(entity, id, data, user) {
   requireAdmin(user);
   const payload = sanitize(model, data);
   if (Object.keys(payload).length === 0) throw new ApiError(400, 'Nothing to update.');
+  if (
+    entity === 'Registration' &&
+    REGISTRATION_MAIL_FIELDS.some((field) => Object.prototype.hasOwnProperty.call(payload, field))
+  ) {
+    throw new ApiError(403, 'Ticket email status can only be changed by the mail service.');
+  }
   await connectDb();
+
+  // Admin links have a dedicated API. Block the generic route from changing
+  // them so a linked admin cannot link/unlink others behind the owner's back.
+  if (entity === 'Event' && Object.prototype.hasOwnProperty.call(payload, 'linked_admin_ids')) {
+    const existing = await model.findById(id).lean();
+    if (!existing) throw new ApiError(404, 'Event not found.');
+    if (existing.created_by && existing.created_by !== user.id) {
+      throw new ApiError(403, 'Only the event owner can change linked admins.');
+    }
+  }
+
   try {
     const doc = await model.findByIdAndUpdate(id, payload, {
       new: true,

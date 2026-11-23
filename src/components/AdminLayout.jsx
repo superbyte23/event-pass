@@ -4,13 +4,15 @@ import { useAuth } from "@/lib/AuthContext";
 import Avatar from "@/components/Avatar";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { LayoutDashboard, CalendarDays, Settings, ArrowLeft, Ticket, ScanLine, Menu } from "lucide-react";
+import { LayoutDashboard, CalendarDays, Settings, ArrowLeft, Ticket, ScanLine, Menu, Users, Mail } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
   { to: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { to: "/admin/events", label: "Events", icon: CalendarDays },
   { to: "/admin/checkin", label: "QR Check-in", icon: ScanLine },
+  { to: "/admin/users", label: "Admin accounts", icon: Users },
+  { to: "/admin/mail-accounts", label: "Mail accounts", icon: Mail },
   { to: "/admin/settings", label: "Settings", icon: Settings },
 ];
 

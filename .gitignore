@@ -1,6 +1,7 @@
 #env
 .env
 .env.*
+!.env.example
 
 # Logs
 /logs
@@ -44,6 +45,7 @@ public/uploads/
 
 # Next.js build output
 .next/
+.next-build/
 
 # Local admin credentials scratch file (never commit)
 admin-user.txt

@@ -122,6 +122,28 @@ export const db = {
     )
   ),
 
+  tickets: {
+    downloadImage: async (ticketId, format = 'webp') => {
+      const response = await fetch(
+        `${API_BASE}/tickets/${encodeURIComponent(ticketId)}/image?format=${encodeURIComponent(format)}`,
+        { credentials: 'same-origin', cache: 'no-store' },
+      );
+      if (!response.ok) {
+        let message = `Could not download ticket (${response.status}).`;
+        try {
+          const data = await response.json();
+          message = data?.message || message;
+        } catch {
+          // Keep the generic message for non-JSON errors.
+        }
+        const error = new Error(message);
+        error.status = response.status;
+        throw error;
+      }
+      return response.blob();
+    },
+  },
+
   auth: {
     isAuthenticated: async () => {
       try {
@@ -198,6 +220,75 @@ export const db = {
     resetPassword: async (...args) => {
       void args;
       throw new Error('Password reset is not enabled for this app.');
+    },
+  },
+
+  admin: {
+    eventAdmins: {
+      list: (eventId) =>
+        request(`${API_BASE}/admin/events/${encodeURIComponent(eventId)}/admins`),
+      add: (eventId, data) =>
+        request(`${API_BASE}/admin/events/${encodeURIComponent(eventId)}/admins`, {
+          method: 'POST',
+          body: JSON.stringify({ data }),
+        }),
+      remove: (eventId, adminId) =>
+        request(
+          `${API_BASE}/admin/events/${encodeURIComponent(eventId)}/admins/${encodeURIComponent(adminId)}`,
+          { method: 'DELETE' },
+        ),
+    },
+
+    mailBatches: {
+      latest: (eventId) =>
+        request(`${API_BASE}/admin/events/${encodeURIComponent(eventId)}/mail-batch`),
+      start: (eventId, data) =>
+        request(`${API_BASE}/admin/events/${encodeURIComponent(eventId)}/mail-batch`, {
+          method: 'POST',
+          body: JSON.stringify({ data }),
+        }),
+      get: (eventId, batchId) =>
+        request(
+          `${API_BASE}/admin/events/${encodeURIComponent(eventId)}/mail-batch/${encodeURIComponent(batchId)}`,
+        ),
+      process: (eventId, batchId) =>
+        request(
+          `${API_BASE}/admin/events/${encodeURIComponent(eventId)}/mail-batch/${encodeURIComponent(batchId)}/process`,
+          { method: 'POST' },
+        ),
+      cancel: (eventId, batchId) =>
+        request(
+          `${API_BASE}/admin/events/${encodeURIComponent(eventId)}/mail-batch/${encodeURIComponent(batchId)}/cancel`,
+          { method: 'POST' },
+        ),
+    },
+
+    mailAccounts: {
+      list: () => request(`${API_BASE}/admin/mail-accounts`),
+      create: (data) =>
+        request(`${API_BASE}/admin/mail-accounts`, {
+          method: 'POST',
+          body: JSON.stringify({ data }),
+        }),
+      update: (id, data) =>
+        request(`${API_BASE}/admin/mail-accounts/${encodeURIComponent(id)}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ data }),
+        }),
+      remove: (id) =>
+        request(`${API_BASE}/admin/mail-accounts/${encodeURIComponent(id)}`, {
+          method: 'DELETE',
+        }),
+      setDefault: (id) =>
+        request(`${API_BASE}/admin/mail-accounts/${encodeURIComponent(id)}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ set_default: true }),
+        }),
+      test: (id, data) =>
+        request(`${API_BASE}/admin/mail-accounts/${encodeURIComponent(id)}/test`, {
+          method: 'POST',
+          body: JSON.stringify({ data }),
+        }),
     },
   },
 

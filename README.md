@@ -54,7 +54,7 @@ flowchart LR
 
 | Entity | Read | Write |
 |---|---|---|
-| **Event** | Published events are public; admins see all | Admin only |
+| **Event** | Published events are public; admins also see events they created or are linked to | Admin only; linked-admin list is owner-only |
 | **Registration** | Admins: all · Users: own only · Guests: by ticket id only | Anyone may create (`user_id` is resolved server-side, never trusted); update/delete admin only |
 | **User** | Self or admin | Admin only |
 | **Setting** | Public | Admin only |
@@ -84,10 +84,29 @@ npm run dev                  # http://localhost:3000
 | `ADMIN_PASSWORD` | Shared admin email/password sign-in (empty disables it) |
 | `BLOB_READ_WRITE_TOKEN` | Vercel Blob token (auto-provided on Vercel; locally uploads fall back to `public/uploads/`) |
 | `APP_URL` | Public app URL used for links inside emails (defaults to `NEXTAUTH_URL`, then localhost) |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` / `MAIL_FROM` | Outgoing mail for ticket delivery (provider-agnostic SMTP). **Optional:** when `SMTP_HOST` is unset, no mail is sent and the app behaves exactly as without it |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` / `MAIL_FROM` | Bootstrap fallback SMTP sender for ticket delivery. **Optional:** when `SMTP_HOST` is unset, no env-based mail is sent. Later phases use per-admin Gmail accounts from the database instead |
+| `MAIL_DEFAULT_PROVIDER` | Main mail provider; defaults to `gmail` |
+| `MAIL_CREDENTIALS_KEY` | Base64 32-byte AES key for encrypting stored Gmail App Passwords. Required only when per-admin accounts are used. Generate with `node --input-type=module -e "import {randomBytes} from 'node:crypto'; console.log(randomBytes(32).toString('base64'))"` |
+| `MAIL_SEND_INTERVAL_MS` | Delay between individual bulk emails; default `400` |
+| `MAIL_BATCH_POLL_MS` | UI polling interval for bulk-send progress; default `2000` |
+| `MAIL_BATCH_CHUNK_SIZE` | Registrations per bulk-send API request; default `20` |
 | `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` (or `KV_REST_API_URL` / `KV_REST_API_TOKEN`), **or** `REDIS_URL` | **Optional** Redis, for rate limiting (`/api/guest-tickets`, guest registration, check-in) and a 60s public event-list cache. REST (Upstash) is preferred on serverless; a TCP `redis://` URL (Redis Cloud marketplace integration) is also supported. Unset = both disabled, app behaves as before. A Redis outage is treated as a cache miss, never as an error |
 
 > Google tip: the OAuth client needs `http://localhost:3000/api/auth/callback/google` locally, plus your production callback URL when deployed. The OAuth flow requires POST initiation — handled in `src/api/db.js`.
+
+Additional admins can be created from `/admin/users`. They sign in with Google using the created email; shared-password sign-in still requires that email in `ADMIN_EMAILS`. Each admin user has a `default_mail_account_id` field that points to their own Gmail mail account.
+
+Gmail accounts are managed at `/admin/mail-accounts`. Each admin can add their own Gmail address + App Password, set a 500/day limit, send a styled sample ticket to verify the sender, and choose which account is the default for automatic ticket emails. Accounts can optionally be shared with other admins; only the owner can edit or delete them. App Passwords are encrypted with `MAIL_CREDENTIALS_KEY` and are never returned to the browser.
+
+Ticket emails use a premium delivery template: branded header, two-column event details (Date/Time on the left, Venue on the right), an inline QR code, a **View your ticket** button, a **Download ticket image** link, and a support footer. There are no downloadable file attachments — the QR is an inline CID image (`cid:ticketqr`), which renders reliably in Gmail and other clients that strip data URIs. The download link redirects through `/t/[code]?download=1` to the official ticket page, which generates and downloads a high-resolution 4 × 6 portrait image.
+
+Guests can download a 4 × 6 portrait WebP or JPEG that mirrors the current `TicketCard` UI: 4:3 cover header, two-column event details, perforated divider, guest/registration field-details list, and QR stub. The event cover is used as the header background when set (local `/uploads/...` files are read directly from disk; remote URLs are fetched). The download endpoint is `GET /api/tickets/[ticket]/image?format=webp|jpeg` and uses the normal ticket read permissions.
+
+Ticket links in emails are shortened to `/t/<code>` and signed with `SHORT_LINK_SECRET` (falls back to `NEXTAUTH_SECRET`/`MAIL_CREDENTIALS_KEY`). The route redirects to the full `/tickets/[id]` page, so changing the secret invalidates previously sent email links.
+
+An event owner can link other admins to an event from the **Admins** button on the event card or event detail page. Linked admins see that event in their own admin list and can view/manage it even while unpublished. Only the owner can add or remove links; legacy events with no owner can be managed by any admin.
+
+Bulk ticket emailing is available from `/admin/events/:event/registrations`: select registrations, click **Email N**, choose a Gmail account, and send. Cancelled registrations and rows without a valid email are skipped; CSV duplicate markers such as `name@example.com#2` are normalized to the real address before sending. The dialog shows live per-email status (`queued → sending → sent/failed/skipped`), and the registrations table keeps a permanent **Email** status. Sends are paced with `MAIL_SEND_INTERVAL_MS` and processed in chunks of `MAIL_BATCH_CHUNK_SIZE`. The single-registration page does not send email.
 
 ---
 
@@ -97,9 +116,9 @@ npm run dev                  # http://localhost:3000
 
 **Account:** `/my-events` · `/profile` · `/tickets/:registration`
 
-**Admin:** `/admin` · `/admin/events` (+ `/create`, `/:event`, `/:event/edit`, `/:event/registrations`) · `/admin/registrations/:registration` · `/admin/checkin` (QR scanner) · `/admin/settings`
+**Admin:** `/admin` · `/admin/events` (+ `/create`, `/:event`, `/:event/edit`, `/:event/registrations`) · `/admin/registrations/:registration` · `/admin/checkin` (QR scanner) · `/admin/users` · `/admin/mail-accounts` · `/admin/settings`
 
-**API:** `/api/auth/[...nextauth]` · `/api/auth/me` · `/api/entities/[entity]`(+`/[id]`) · `/api/guest-tickets` · `/api/public-settings` · `/api/uploads` · `/api/admin/checkin`
+**API:** `/api/auth/[...nextauth]` · `/api/auth/me` · `/api/entities/[entity]`(+`/[id]`) · `/api/guest-tickets` · `/api/public-settings` · `/api/uploads` · `/api/tickets/[ticket]/image` · `/t/[code]` · `/api/admin/checkin` · `/api/admin/mail-accounts`(+`/[id]`, `/[id]/test`) · `/api/admin/events/[event]/admins`(+`/[admin]`) · `/api/admin/events/[event]/mail-batch`(+`/[batch]`, `/[batch]/process`, `/[batch]/cancel`)
 
 ---
 

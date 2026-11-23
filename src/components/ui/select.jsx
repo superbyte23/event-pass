@@ -28,24 +28,58 @@ function collectItemLabels(node, map) {
     if (!React.isValidElement(child)) return
     if (child.type === SelectItem) {
       const itemValue = child.props?.value
-      if (itemValue !== undefined && !map.has(itemValue)) {
-        map.set(itemValue, nodeToText(child.props?.children) || String(itemValue))
+      if (itemValue !== undefined) {
+        const label = child.props?.label ?? (nodeToText(child.props?.children) || String(itemValue))
+        map.set(itemValue, label)
       }
       return
     }
-    if (child.type === SelectContent || child.type === SelectGroup || child.type === React.Fragment) {
-      collectItemLabels(child.props?.children, map)
-    }
+    if (child.props?.children) collectItemLabels(child.props.children, map)
   })
 }
 
-function Select({ value, defaultValue, onValueChange, open: openProp, onOpenChange, disabled, children }) {
-  const [uncontrolled, setUncontrolled] = React.useState(defaultValue)
-  const isControlled = value !== undefined
-  const current = isControlled ? value : uncontrolled
+const Select = ({
+  value: valueProp,
+  defaultValue,
+  onValueChange,
+  open: openProp,
+  onOpenChange,
+  disabled = false,
+  multiple = false,
+  children,
+}) => {
+  const [internalOpen, setInternalOpen] = React.useState(false)
+  const open = openProp !== undefined ? openProp : internalOpen
+  const setOpen = React.useCallback(
+    (next) => {
+      if (openProp === undefined) setInternalOpen(next)
+      onOpenChange?.(next)
+    },
+    [openProp, onOpenChange]
+  )
 
-  const [openState, setOpenState] = React.useState(false)
-  const open = openProp !== undefined ? openProp : openState
+  const [internal, setInternal] = React.useState(
+    defaultValue !== undefined ? defaultValue : multiple ? [] : undefined
+  )
+  const value = valueProp !== undefined ? valueProp : internal
+  const setValue = React.useCallback(
+    (next) => {
+      if (multiple) {
+        const current = Array.isArray(value) ? value : []
+        const updated = current.includes(next)
+          ? current.filter((item) => item !== next)
+          : [...current, next]
+        if (valueProp === undefined) setInternal(updated)
+        onValueChange?.(updated)
+        return
+      }
+
+      if (valueProp === undefined) setInternal(next)
+      onValueChange?.(next)
+      setOpen(false)
+    },
+    [valueProp, onValueChange, multiple, value, setOpen]
+  )
 
   const labels = React.useMemo(() => {
     const map = new Map()
@@ -53,26 +87,9 @@ function Select({ value, defaultValue, onValueChange, open: openProp, onOpenChan
     return map
   }, [children])
 
-  const setOpen = React.useCallback(
-    (next) => {
-      setOpenState(next)
-      onOpenChange?.(next)
-    },
-    [onOpenChange],
-  )
-
-  const setValue = React.useCallback(
-    (val) => {
-      if (!isControlled) setUncontrolled(val)
-      onValueChange?.(val)
-      setOpen(false)
-    },
-    [isControlled, onValueChange, setOpen],
-  )
-
   const ctx = React.useMemo(
-    () => ({ value: current, setValue, open, setOpen, disabled, labels }),
-    [current, setValue, open, setOpen, disabled, labels],
+    () => ({ value, setValue, open, setOpen, disabled, labels, multiple }),
+    [value, setValue, open, setOpen, disabled, labels, multiple]
   )
 
   return (
@@ -85,13 +102,29 @@ function Select({ value, defaultValue, onValueChange, open: openProp, onOpenChan
 }
 
 const SelectValue = React.forwardRef(({ className, placeholder, ...props }, ref) => {
-  const { value, labels } = useSelect()
-  const hasValue = value !== undefined && value !== null && value !== ""
-  const label = hasValue ? labels.get(value) : undefined
+  const { value, labels, multiple } = useSelect()
+  const hasValue = multiple
+    ? Array.isArray(value) && value.length > 0
+    : value !== undefined && value !== null && value !== ""
+
+  let label
+  if (hasValue) {
+    if (multiple) {
+      const selected = value.map((item) => labels.get(item) ?? String(item)).filter(Boolean)
+      label = selected.length === 1 ? selected[0] : `${selected.length} admins selected`
+    } else {
+      label = labels.get(value) ?? String(value)
+    }
+  }
+
   return (
     <span
       ref={ref}
-      className={cn("line-clamp-1", !label && "text-muted-foreground", className)}
+      className={cn(
+        "block min-w-0 flex-1 truncate text-left",
+        !label && "text-muted-foreground",
+        className
+      )}
       {...props}>
       {label ?? placeholder}
     </span>
@@ -108,7 +141,7 @@ const SelectTrigger = React.forwardRef(({ className, children, ...props }, ref) 
         type="button"
         disabled={disabled}
         className={cn(
-          "flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1",
+          "flex h-9 w-full min-w-0 items-center justify-between gap-2 whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:min-w-0 [&>span]:flex-1 [&>span]:truncate",
           className
         )}
         {...props}>
@@ -173,9 +206,11 @@ const SelectLabel = React.forwardRef(({ className, ...props }, ref) => (
 SelectLabel.displayName = "SelectLabel"
 
 const SelectItem = React.forwardRef(({ className, children, value: itemValue, ...props }, ref) => {
-  const { value, setValue } = useSelect()
+  const { value, setValue, multiple } = useSelect()
   const label = nodeToText(children) || String(itemValue ?? "")
-  const selected = value !== undefined && value !== null && value !== "" && value === itemValue
+  const selected = multiple
+    ? Array.isArray(value) && value.includes(itemValue)
+    : value !== undefined && value !== null && value !== "" && value === itemValue
 
   return (
     <CommandItem
@@ -188,7 +223,7 @@ const SelectItem = React.forwardRef(({ className, children, value: itemValue, ..
       <span className="absolute right-2 flex h-3.5 w-3.5 items-center justify-center">
         {selected && <Check className="h-4 w-4" />}
       </span>
-      {children}
+      <span className="block truncate">{children}</span>
     </CommandItem>
   )
 })

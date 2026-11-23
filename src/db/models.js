@@ -15,6 +15,9 @@ const userSchema = new Schema(
     full_name: { type: String, default: null },
     image: { type: String, default: null },
     role: { type: String, enum: ['admin', 'user'], default: 'user' },
+    // Set when a per-admin mail account is configured. Kept on the user so the
+    // default sender can be resolved from the session without another lookup.
+    default_mail_account_id: { type: String, default: null, index: true },
     created_date: createdDate,
   },
   options,
@@ -46,6 +49,9 @@ const eventSchema = new Schema(
     accent_color: { type: String, default: '#0f172a' },
     form_fields: { type: [Schema.Types.Mixed], default: [] },
     created_by: { type: String, default: null, index: true },
+    // Other admins explicitly linked to this event. They can see and manage
+    // it even when unpublished; only the owner can change this list.
+    linked_admin_ids: { type: [String], default: [], index: true },
     created_date: createdDate,
   },
   options,
@@ -70,6 +76,18 @@ const registrationSchema = new Schema(
     checked_in_at: { type: Date, default: null },
     checked_in_by: { type: String, default: null },
     responses: { type: Schema.Types.Mixed, default: () => ({}) },
+    // Ticket delivery state. Persisted so the registrations list can show
+    // whether each guest has already been emailed.
+    email_status: {
+      type: String,
+      enum: ['not_sent', 'sending', 'sent', 'failed', 'skipped'],
+      default: 'not_sent',
+      index: true,
+    },
+    email_sent_at: { type: Date, default: null },
+    email_error: { type: String, default: null },
+    email_account_id: { type: String, default: null },
+    email_attempts: { type: Number, default: 0 },
     created_date: createdDate,
   },
   options,
@@ -84,6 +102,85 @@ const settingSchema = new Schema(
   },
   options,
 );
+
+// Per-admin mail sender. The App Password is stored encrypted; only safe
+// metadata is ever serialized back to the browser.
+const mailAccountSchema = new Schema(
+  {
+    _id: id(),
+    owner_admin_id: { type: String, required: true, index: true },
+    label: { type: String, required: true, trim: true },
+    provider: { type: String, enum: ['gmail'], default: 'gmail' },
+    email: { type: String, required: true, lowercase: true, trim: true },
+    from: { type: String, required: true, trim: true },
+    host: { type: String, default: 'smtp.gmail.com' },
+    port: { type: Number, default: 587 },
+    secure: { type: Boolean, default: false },
+    encrypted_password: { type: String, required: true },
+    daily_limit: { type: Number, default: 500, min: 1, max: 10000 },
+    active: { type: Boolean, default: true },
+    shared_with_admins: { type: Boolean, default: false },
+    created_date: createdDate,
+    updated_date: { type: Date, default: () => new Date() },
+  },
+  options,
+);
+
+mailAccountSchema.index({ owner_admin_id: 1, email: 1 }, { unique: true });
+
+// Successful sends count toward a Gmail account's rolling 24-hour quota.
+// Failures are kept for troubleshooting but do not consume quota.
+const mailLogSchema = new Schema(
+  {
+    _id: id(),
+    account_id: { type: String, required: true, index: true },
+    owner_admin_id: { type: String, default: null, index: true },
+    admin_id: { type: String, default: null },
+    registration_id: { type: String, default: null, index: true },
+    event_id: { type: String, default: null },
+    kind: { type: String, enum: ['ticket', 'test'], default: 'ticket' },
+    status: { type: String, enum: ['sent', 'failed'], default: 'sent' },
+    error: { type: String, default: null },
+    message_id: { type: String, default: null },
+    sent_at: { type: Date, default: () => new Date() },
+  },
+  options,
+);
+
+// Live progress for a bulk ticket send. The client advances the batch in
+// chunks so each request stays short and per-email status remains observable.
+const mailBatchSchema = new Schema(
+  {
+    _id: id(),
+    event_id: { type: String, required: true, index: true },
+    admin_id: { type: String, required: true, index: true },
+    account_id: { type: String, required: true },
+    account_label: { type: String, default: null },
+    account_email: { type: String, default: null },
+    status: {
+      type: String,
+      enum: ['running', 'completed', 'cancelled', 'failed'],
+      default: 'running',
+    },
+    processing: { type: Boolean, default: false },
+    cancel_requested: { type: Boolean, default: false },
+    items: { type: [Schema.Types.Mixed], default: [] },
+    counts: {
+      total: { type: Number, default: 0 },
+      processed: { type: Number, default: 0 },
+      sent: { type: Number, default: 0 },
+      skipped: { type: Number, default: 0 },
+      failed: { type: Number, default: 0 },
+    },
+    error: { type: String, default: null },
+    created_date: createdDate,
+    updated_date: { type: Date, default: () => new Date() },
+    completed_date: { type: Date, default: null },
+  },
+  options,
+);
+
+mailBatchSchema.index({ event_id: 1, admin_id: 1, status: 1 });
 
 // Reuse compiled models across Next.js dev hot-reloads.
 function register(name, schema) {
@@ -109,7 +206,12 @@ export const User = register('User', userSchema);
 export const Event = register('Event', eventSchema);
 export const Registration = register('Registration', registrationSchema);
 export const Setting = register('Setting', settingSchema);
+export const MailAccount = register('MailAccount', mailAccountSchema);
+export const MailLog = register('MailLog', mailLogSchema);
+export const MailBatch = register('MailBatch', mailBatchSchema);
 
+// MailAccount/MailLog/MailBatch are intentionally not in MODELS — they have dedicated
+// admin-only APIs and must not be reachable through the generic entity routes.
 export const MODELS = { Event, Registration, Setting, User };
 
 // Mongo documents expose `_id`; the app (Base44 contract) reads `id`, so flatten

@@ -8,8 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EventStatusBadge } from "@/components/StatusBadge";
 import { Image } from "@/components/ui/image";
+import EventAdminsDialog from "@/components/EventAdminsDialog";
 import { formatDateShort } from "@/lib/event-utils";
-import { Plus, Pencil, Eye, Users, Trash2, Search, RefreshCw } from "lucide-react";
+import { Plus, Pencil, Eye, Users, UserPlus, Trash2, Search, RefreshCw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 
@@ -19,12 +20,16 @@ export default function AdminEvents() {
   const [events, setEvents] = useState(null);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  const [adminEvent, setAdminEvent] = useState(null);
 
   const load = async () => {
     setLoading(true);
     try {
-      const l = await db.entities.Event.filter({ created_by: user?.id }, "-created_date", 1000);
-      setEvents(l || []);
+      const l = await db.entities.Event.list("-created_date", 1000);
+      const mine = (l || []).filter(
+        (e) => e.created_by === user?.id || (Array.isArray(e.linked_admin_ids) && e.linked_admin_ids.includes(user?.id)),
+      );
+      setEvents(mine);
     } catch {
       setEvents([]);
     } finally {
@@ -98,6 +103,7 @@ export default function AdminEvents() {
                   <Button asChild size="sm" variant="outline"><Link to={`/admin/events/${e.id}`}><Eye className="w-3.5 h-3.5 mr-1" /> View</Link></Button>
                   <Button asChild size="sm" variant="outline"><Link to={`/admin/events/${e.id}/edit`}><Pencil className="w-3.5 h-3.5 mr-1" /> Edit</Link></Button>
                   <Button asChild size="sm" variant="outline"><Link to={`/admin/events/${e.id}/registrations`}><Users className="w-3.5 h-3.5 mr-1" /> Guests</Link></Button>
+                  <Button size="sm" variant="outline" onClick={() => setAdminEvent(e)}><UserPlus className="w-3.5 h-3.5 mr-1" /> Admins</Button>
                   <Button size="sm" variant="ghost" onClick={() => togglePublish(e)}>{e.published ? "Unpublish" : "Publish"}</Button>
                   <Button size="sm" variant="ghost" className="text-rose-600 hover:text-rose-700" onClick={() => handleDelete(e)}><Trash2 className="w-3.5 h-3.5" /></Button>
                 </div>
@@ -106,6 +112,12 @@ export default function AdminEvents() {
           ))}
         </div>
       )}
+      <EventAdminsDialog
+        eventId={adminEvent?.id}
+        open={Boolean(adminEvent)}
+        onOpenChange={(open) => { if (!open) setAdminEvent(null); }}
+        onChanged={load}
+      />
       {ConfirmDialog}
     </div>
   );
