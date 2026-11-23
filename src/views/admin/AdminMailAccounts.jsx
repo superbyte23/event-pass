@@ -21,6 +21,7 @@ import { useAuth } from "@/lib/AuthContext";
 import {
   AlertTriangle,
   CheckCircle2,
+  Download,
   Loader2,
   Mail,
   Pencil,
@@ -29,6 +30,7 @@ import {
   Send,
   Star,
   Trash2,
+  Upload,
 } from "lucide-react";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -63,6 +65,13 @@ export default function AdminMailAccounts() {
   const [testForm, setTestForm] = useState({ to: "", subject: "", body: "" });
   const [testSending, setTestSending] = useState(false);
   const [testError, setTestError] = useState("");
+  const [exporting, setExporting] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [updateExisting, setUpdateExisting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState("");
+  const [importResult, setImportResult] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -101,6 +110,79 @@ export default function AdminMailAccounts() {
   const closeTestDialog = () => {
     setTestAccount(null);
     setTestError("");
+  };
+
+  const closeImportDialog = () => {
+    setImportOpen(false);
+    setImportFile(null);
+    setImportError("");
+    setImportResult(null);
+  };
+
+  const exportData = async () => {
+    setExporting(true);
+    try {
+      const data = await db.admin.mailAccounts.exportData();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `mail-accounts-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      toast({
+        title: "Mail accounts exported",
+        description: "Keep the file private — App Passwords are included in encrypted form.",
+      });
+    } catch (e) {
+      toast({
+        variant: "destructive",
+        title: "Export failed",
+        description: e?.message || "Could not export mail accounts.",
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleImport = async (event) => {
+    event.preventDefault();
+    if (!importFile) {
+      setImportError("Choose a mail-account export JSON file first.");
+      return;
+    }
+
+    setImporting(true);
+    setImportError("");
+    setImportResult(null);
+    try {
+      const text = await importFile.text();
+      let payload;
+      try {
+        payload = JSON.parse(text);
+      } catch {
+        throw new Error("The selected file is not valid JSON.");
+      }
+      if (payload?.format && payload.format !== "eventpass-mail-accounts") {
+        throw new Error("This is not an EventPass mail-account export.");
+      }
+
+      const result = await db.admin.mailAccounts.importData(payload, { updateExisting });
+      setImportResult(result);
+      toast({
+        title: "Import finished",
+        description: `${result.created} created · ${result.updated} updated · ${result.skipped} skipped · ${result.failed} failed`,
+      });
+      await load();
+    } catch (e) {
+      const message = e?.message || "Could not import mail accounts.";
+      setImportError(message);
+      toast({ variant: "destructive", title: "Import failed", description: message });
+    } finally {
+      setImporting(false);
+    }
   };
 
   const sendTest = async (event) => {
@@ -353,10 +435,24 @@ export default function AdminMailAccounts() {
             <Mail className="h-5 w-5 text-muted-foreground" />
             <h2 className="text-base font-semibold">Configured accounts</h2>
           </div>
-          <Button variant="ghost" size="sm" onClick={load} disabled={loading}>
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            Refresh
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={exportData}
+              disabled={exporting || loading || accounts.length === 0}
+            >
+              {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              Export
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} disabled={importing}>
+              <Upload className="h-4 w-4" /> Import
+            </Button>
+            <Button variant="ghost" size="sm" onClick={load} disabled={loading}>
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              Refresh
+            </Button>
+          </div>
         </div>
 
         {loadError && (
@@ -568,6 +664,91 @@ export default function AdminMailAccounts() {
               <Button type="submit" disabled={testSending}>
                 {testSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 {testSending ? "Sending…" : "Send sample ticket"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={importOpen} onOpenChange={(open) => { if (!open) closeImportDialog(); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Import mail accounts</DialogTitle>
+            <DialogDescription>
+              Import an EventPass JSON export. Encrypted App Passwords are restored only when this deployment
+              uses the same <code>MAIL_CREDENTIALS_KEY</code>; otherwise re-enter them after import.
+              Imported accounts are assigned to you.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleImport} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="mail-import-file">Export JSON file</Label>
+              <Input
+                id="mail-import-file"
+                type="file"
+                accept="application/json,.json"
+                onChange={(e) => {
+                  setImportFile(e.target.files?.[0] || null);
+                  setImportError("");
+                  setImportResult(null);
+                }}
+                disabled={importing}
+              />
+            </div>
+            <div className="flex items-start justify-between gap-4 rounded-lg border border-border p-3">
+              <div>
+                <Label htmlFor="mail-import-update">Update existing accounts</Label>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Replace settings when an email already exists. Otherwise duplicates are skipped.
+                </p>
+              </div>
+              <Switch
+                id="mail-import-update"
+                checked={updateExisting}
+                onCheckedChange={setUpdateExisting}
+                disabled={importing}
+              />
+            </div>
+
+            {importError && (
+              <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+                {importError}
+              </div>
+            )}
+
+            {importResult && (
+              <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
+                <p className="font-medium">
+                  {importResult.created} created · {importResult.updated} updated ·{" "}
+                  {importResult.skipped} skipped · {importResult.failed} failed
+                </p>
+                {importResult.warning && (
+                  <p className="mt-2 text-amber-700">{importResult.warning}</p>
+                )}
+                {importResult.results.length > 0 && (
+                  <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto text-xs text-muted-foreground">
+                    {importResult.results.slice(0, 20).map((result, index) => (
+                      <li key={`${result.email || result.label}-${index}`}>
+                        <span className="font-medium uppercase">{result.status}</span>{" "}
+                        {result.label || result.email || `Row ${index + 1}`}
+                        {result.reason ? ` — ${result.reason}` : ""}
+                      </li>
+                    ))}
+                    {importResult.results.length > 20 && (
+                      <li>…and {importResult.results.length - 20} more</li>
+                    )}
+                  </ul>
+                )}
+              </div>
+            )}
+
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={closeImportDialog} disabled={importing}>
+                Close
+              </Button>
+              <Button type="submit" disabled={importing || !importFile}>
+                {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                {importing ? "Importing…" : "Import accounts"}
               </Button>
             </DialogFooter>
           </form>

@@ -289,6 +289,12 @@ export const db = {
           method: 'POST',
           body: JSON.stringify({ data }),
         }),
+      exportData: () => request(`${API_BASE}/admin/mail-accounts/export`),
+      importData: (data, options = {}) =>
+        request(`${API_BASE}/admin/mail-accounts/import`, {
+          method: 'POST',
+          body: JSON.stringify({ data, options }),
+        }),
     },
   },
 

@@ -23,3 +23,4 @@ Start with `README.md` for setup, environment variables, and architecture.
 - Server errors must return JSON `{ message }` with a proper HTTP status; the client reads `e.message` and `e.status`.
 - Do not trust client-supplied `user_id` on registrations — the server resolves it from the session (or null for guests).
 - Run `npm run lint` and `npm run typecheck` before finishing code changes; `npm run build` must stay green and must not require env vars.
+- Baseline status (2026-11-23): `npm run build` passes with pre-existing lint warnings (Next.js ESLint plugin not detected, unused vars, hook deps). `npm run typecheck` fails with ~471 pre-existing errors in 56 files, mostly JSX prop/`React.forwardRef` inference plus ad-hoc `Error.status` and `Date` arithmetic. Treat these as the existing baseline; do not attempt to fix them unless asked.

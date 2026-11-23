@@ -1,9 +1,10 @@
 // Per-admin Gmail sender accounts.
 //
-// Passwords are App Passwords encrypted with MAIL_CREDENTIALS_KEY. Only safe
-// metadata is returned to the browser; secrets never leave the server.
+// Passwords are App Passwords encrypted with MAIL_CREDENTIALS_KEY. Normal reads
+// return only safe metadata; the encrypted payload is included only in an
+// explicit admin export, never in plaintext.
 
-import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 
 import { connectDb } from '../db/index.js';
 import { MailAccount, MailLog, User } from '../db/models.js';
@@ -13,6 +14,9 @@ import { sendSmtpMail } from './smtp.js';
 
 const CIPHER_VERSION = 'v1';
 const DAY_MS = 24 * 60 * 60 * 1000;
+const EXPORT_FORMAT = 'eventpass-mail-accounts';
+const EXPORT_VERSION = 1;
+const MAX_IMPORT_ROWS = 200;
 
 function fail(status, message) {
   const error = new Error(message);
@@ -22,6 +26,38 @@ function fail(status, message) {
 
 function assertAdmin(user) {
   if (user?.role !== 'admin') fail(403, 'You need an admin account to do that.');
+}
+
+function requireCredentialsKey() {
+  try {
+    return getMailCredentialsKey();
+  } catch (error) {
+    fail(400, error?.message || 'MAIL_CREDENTIALS_KEY is not configured.');
+  }
+}
+
+// A short, non-secret marker so an import can explain why an encrypted backup
+// from another deployment cannot be restored with the current key.
+function credentialsKeyFingerprint() {
+  return createHash('sha256').update(requireCredentialsKey()).digest('hex').slice(0, 16);
+}
+
+function pick(row, ...keys) {
+  for (const key of keys) {
+    if (row && Object.prototype.hasOwnProperty.call(row, key) && row[key] != null) {
+      return row[key];
+    }
+  }
+  return undefined;
+}
+
+function normalizeBoolean(value, fallback = false) {
+  if (value == null || value === '') return fallback;
+  if (typeof value === 'boolean') return value;
+  const text = String(value).trim().toLowerCase();
+  if (['true', '1', 'yes', 'y', 'active', 'on'].includes(text)) return true;
+  if (['false', '0', 'no', 'n', 'inactive', 'off'].includes(text)) return false;
+  return fallback;
 }
 
 function cleanText(value, label, { required = true, max = 200 } = {}) {
@@ -205,6 +241,227 @@ export async function listMailAccounts(user) {
       isDefault: String(doc._id) === defaultId,
     }),
   );
+}
+
+// Backup file. The App Password is intentionally exported only as the stored
+// AES-GCM payload; plaintext secrets are never sent to the browser.
+export async function exportMailAccounts(user) {
+  assertAdmin(user);
+  await connectDb();
+  const keyFingerprint = credentialsKeyFingerprint();
+  const docs = await MailAccount.find({ owner_admin_id: String(user.id) })
+    .sort({ created_date: 1 })
+    .lean();
+  const owner = await User.findById(user.id).select('default_mail_account_id').lean();
+  const defaultId = String(owner?.default_mail_account_id || '');
+
+  return {
+    format: EXPORT_FORMAT,
+    version: EXPORT_VERSION,
+    exported_at: new Date().toISOString(),
+    credentials_key_fingerprint: keyFingerprint,
+    accounts: docs.map((doc) => ({
+      label: doc.label,
+      provider: doc.provider || 'gmail',
+      email: doc.email,
+      from: doc.from,
+      host: doc.host || 'smtp.gmail.com',
+      port: Number(doc.port || 587),
+      secure: Boolean(doc.secure),
+      daily_limit: Number(doc.daily_limit || 500),
+      active: Boolean(doc.active),
+      shared_with_admins: Boolean(doc.shared_with_admins),
+      is_default: String(doc._id) === defaultId,
+      encrypted_password: String(doc.encrypted_password || ''),
+      created_date: doc.created_date || null,
+    })),
+  };
+}
+
+// Restores an export to the signed-in admin. Encrypted credentials are reused
+// only when the current MAIL_CREDENTIALS_KEY can decrypt them; plaintext
+// passwords supplied in a hand-written file are encrypted here server-side.
+export async function importMailAccounts(payload, user, options = {}) {
+  assertAdmin(user);
+  const currentFingerprint = credentialsKeyFingerprint();
+  const rows = Array.isArray(payload)
+    ? payload
+    : payload?.accounts || payload?.data?.accounts;
+  if (!Array.isArray(rows)) fail(400, 'Select a mail-account export JSON file.');
+  if (!rows.length) fail(400, 'The export contains no mail accounts.');
+  if (rows.length > MAX_IMPORT_ROWS) {
+    fail(400, `Import up to ${MAX_IMPORT_ROWS} mail accounts at a time.`);
+  }
+
+  await connectDb();
+  const fileFingerprint = pick(
+    payload,
+    'credentials_key_fingerprint',
+    'keyFingerprint',
+  );
+  const hasEncryptedCredentials = rows.some((row) =>
+    Boolean(String(pick(row, 'encrypted_password', 'encryptedPassword', 'encrypted_credential') || '').trim()),
+  );
+  const keyMismatch = Boolean(
+    fileFingerprint &&
+      hasEncryptedCredentials &&
+      String(fileFingerprint) !== currentFingerprint,
+  );
+  const updateExisting = options?.updateExisting === true || options?.update_existing === true;
+
+  const existing = await MailAccount.find({ owner_admin_id: String(user.id) })
+    .select('email')
+    .lean();
+  const existingByEmail = new Map(
+    existing.map((doc) => [String(doc.email).toLowerCase(), String(doc._id)]),
+  );
+
+  const results = [];
+  const seenEmails = new Set();
+  let defaultId = null;
+
+  for (let index = 0; index < rows.length; index += 1) {
+    const row = rows[index];
+    const rowNumber = index + 1;
+    let doc;
+
+    try {
+      const provider = String(pick(row, 'provider', 'type') ?? 'gmail').trim().toLowerCase();
+      if (provider !== 'gmail') fail(400, 'Only Gmail mail accounts can be imported.');
+
+      const email = normalizeEmail(
+        pick(row, 'email', 'gmail', 'gmail_address'),
+        `Gmail address (row ${rowNumber})`,
+      );
+      const label = cleanText(pick(row, 'label', 'name') || email, `Label (row ${rowNumber})`);
+      const from = cleanText(
+        pick(row, 'from', 'from_address') || `EventPass <${email}>`,
+        `From address (row ${rowNumber})`,
+      );
+      const dailyLimit = normalizeLimit(pick(row, 'daily_limit', 'dailyLimit'));
+      const active = normalizeBoolean(pick(row, 'active'), true);
+      const sharedWithAdmins = normalizeBoolean(
+        pick(row, 'shared_with_admins', 'sharedWithAdmins'),
+        false,
+      );
+      const isDefault = normalizeBoolean(pick(row, 'is_default', 'isDefault'), false);
+      if (isDefault && !active) fail(400, 'A default mail account must be active.');
+
+      const encryptedValue = String(
+        pick(row, 'encrypted_password', 'encryptedPassword', 'encrypted_credential') ?? '',
+      ).trim();
+      const plainPassword = pick(row, 'password', 'app_password', 'appPassword');
+      let encryptedPassword;
+      if (encryptedValue) {
+        // Throws when the backup came from a different MAIL_CREDENTIALS_KEY.
+        decryptSecret(encryptedValue);
+        encryptedPassword = encryptedValue;
+      } else if (plainPassword != null && String(plainPassword).trim()) {
+        encryptedPassword = encryptForStorage(
+          normalizePassword(plainPassword, { required: true }),
+        );
+      } else {
+        fail(400, 'No encrypted or plain App Password was provided.');
+      }
+
+      if (seenEmails.has(email)) {
+        results.push({
+          status: 'skipped',
+          label,
+          email,
+          reason: 'Duplicate email in the import file.',
+        });
+        continue;
+      }
+      seenEmails.add(email);
+
+      const existingId = existingByEmail.get(email);
+      if (existingId && !updateExisting) {
+        results.push({
+          status: 'skipped',
+          label,
+          email,
+          reason: 'An account with this email already exists.',
+        });
+        continue;
+      }
+
+      const values = {
+        owner_admin_id: String(user.id),
+        label,
+        provider: 'gmail',
+        email,
+        from,
+        host: 'smtp.gmail.com',
+        port: 587,
+        secure: false,
+        encrypted_password: encryptedPassword,
+        daily_limit: dailyLimit,
+        active,
+        shared_with_admins: sharedWithAdmins,
+        updated_date: new Date(),
+      };
+
+      if (existingId) {
+        doc = await MailAccount.findById(existingId);
+        if (!doc) fail(404, 'Existing mail account could not be found.');
+        Object.assign(doc, values);
+        await doc.save();
+      } else {
+        try {
+          doc = await MailAccount.create(values);
+        } catch (error) {
+          if (error?.code === 11000) {
+            results.push({
+              status: 'skipped',
+              label,
+              email,
+              reason: 'An account with this email already exists.',
+            });
+            continue;
+          }
+          throw error;
+        }
+      }
+
+      const id = String(doc._id);
+      results.push({ status: existingId ? 'updated' : 'created', id, label, email, active, isDefault });
+      if (isDefault && !defaultId) defaultId = id;
+    } catch (error) {
+      results.push({
+        status: 'failed',
+        label: String(pick(row, 'label', 'name') || `Row ${rowNumber}`),
+        email: String(pick(row, 'email', 'gmail', 'gmail_address') || ''),
+        reason: error?.message || 'This row could not be imported.',
+      });
+    }
+  }
+
+  if (!defaultId) {
+    const owner = await User.findById(user.id).select('default_mail_account_id').lean();
+    if (!owner?.default_mail_account_id) {
+      const firstActive = results.find(
+        (result) => ['created', 'updated'].includes(result.status) && result.active,
+      );
+      if (firstActive) defaultId = firstActive.id;
+    }
+  }
+  if (defaultId) {
+    await User.findByIdAndUpdate(user.id, { default_mail_account_id: defaultId });
+  }
+
+  const count = (status) => results.filter((result) => result.status === status).length;
+  return {
+    total: results.length,
+    created: count('created'),
+    updated: count('updated'),
+    skipped: count('skipped'),
+    failed: count('failed'),
+    warning: keyMismatch
+      ? 'This export was created with a different MAIL_CREDENTIALS_KEY. Encrypted App Passwords cannot be restored; re-enter them after import.'
+      : null,
+    results,
+  };
 }
 
 export async function createMailAccount(input, user) {
