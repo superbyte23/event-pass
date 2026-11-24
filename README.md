@@ -27,7 +27,7 @@ for door staff, with an admin dashboard over everything.
 | 📅 **Events** | Publish events with covers, venues, schedules, capacity, registration windows, and custom form fields |
 | 🎫 **Registration** | Guests (email, no account) or signed-in users — one ticket per person per event, enforced in code *and* at the database level |
 | 🔳 **Offline QR tickets** | Every ticket gets a razor-sharp SVG QR, encoded and rendered on-device — no image APIs, no network |
-| 📷 **QR check-in scanner** | Admin camera page with a built-in QR detector (finder localization, perspective correction, Reed–Solomon error correction); idempotent repeat scans, plus manual entry by link, token, or `REG-YYYY-XXXXXX` number |
+| 📷 **QR check-in scanner** | Admin camera page with a built-in QR detector (finder localization, perspective correction, Reed–Solomon error correction); the camera stays live after a scan, with a progress modal and queued scans while check-ins complete. Idempotent repeat scans, plus manual entry by link, token, or `REG-YYYY-XXXXXX` number |
 | 🔍 **Find my ticket** | Guests retrieve tickets by email — no account needed |
 | 🛡️ **Admin area** | Dashboard, events, registrations (search/filter/CSV import-export), per-registration check-in, settings |
 | 📱 **Mobile-first** | Auth-aware hamburger menus on site and admin; staff-friendly door flow |

@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
+import CheckInProgressDialog from "@/components/CheckInProgressDialog";
 import CheckInResult from "@/components/CheckInResult";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,10 +12,20 @@ import { Camera, CameraOff, Flashlight, FlashlightOff, History, Loader2, QrCode,
 
 const SCAN_INTERVAL_MS = 250;
 const CAPTURE_MAX_WIDTH = 800;
+const SCAN_DEDUPE_MS = 2000;
+const MAX_SCAN_QUEUE = 5;
+const SUCCESS_NEXT_DELAY_MS = 800;
+const SUCCESS_CLOSE_DELAY_MS = 1200;
 
 export default function AdminCheckIn() {
   const scannerRef = useRef(null);
   const videoRef = useRef(null);
+  const queueRef = useRef([]);
+  const activeRef = useRef(null);
+  const drainingRef = useRef(false);
+  const drainQueueRef = useRef(null);
+  const closeTimerRef = useRef(null);
+
   const [scanning, setScanning] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
   const [torchSupported, setTorchSupported] = useState(false);
@@ -24,31 +35,112 @@ export default function AdminCheckIn() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [history, setHistory] = useState([]);
+  const [activeScan, setActiveScan] = useState(null);
 
-  const processValue = async (value) => {
-    const token = parseQrValue(value);
-    if (!token) {
-      setError("That doesn't look like a valid ticket code.");
-      return;
-    }
+  const drainQueue = useCallback(async () => {
+    if (drainingRef.current || activeRef.current || closeTimerRef.current) return;
+    const token = queueRef.current.shift();
+    if (!token) return;
+
+    drainingRef.current = true;
+    activeRef.current = token;
     setBusy(true);
     setError("");
     setResult(null);
+    setActiveScan({ token, phase: "processing", queued: queueRef.current.length });
+
+    let succeeded = false;
+
     try {
       const data = await checkInByQrValue(token);
       setResult({ ...data, token });
       setHistory((prev) =>
         [{ registration: data.registration, already: data.already, at: new Date() }, ...prev].slice(0, 8)
       );
+      setActiveScan({ token, phase: "success", result: data, queued: queueRef.current.length });
+      succeeded = true;
     } catch (e) {
+      const message = e?.message || "Check-in failed.";
       setResult(null);
-      setError(e?.message || "Check-in failed.");
+      setError(message);
+      setActiveScan({ token, phase: "error", error: message, queued: queueRef.current.length });
     } finally {
       setBusy(false);
+      activeRef.current = null;
+      drainingRef.current = false;
     }
-  };
 
-  const stopCamera = () => {
+    // Errors stay until staff dismisses them so a failure isn't missed. Success
+    // auto-advances, keeping the camera live and the queue moving.
+    if (succeeded) {
+      closeTimerRef.current = setTimeout(() => {
+        closeTimerRef.current = null;
+        if (queueRef.current.length) drainQueueRef.current?.();
+        else setActiveScan(null);
+      }, queueRef.current.length ? SUCCESS_NEXT_DELAY_MS : SUCCESS_CLOSE_DELAY_MS);
+    }
+  }, []);
+
+  useEffect(() => {
+    drainQueueRef.current = drainQueue;
+    return () => {
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+      queueRef.current = [];
+    };
+  }, [drainQueue]);
+
+  const enqueueCheckIn = useCallback((value) => {
+    const token = parseQrValue(value);
+    if (!token) {
+      const message = "That doesn't look like a valid ticket code.";
+      setError(message);
+      setActiveScan({ token: "", phase: "error", error: message, queued: queueRef.current.length });
+      return;
+    }
+
+    if (activeRef.current === token || queueRef.current.includes(token)) return;
+
+    const ctx = scannerRef.current;
+    if (ctx?.seen) {
+      const now = Date.now();
+      for (const [seenToken, at] of ctx.seen) {
+        if (now - at > SCAN_DEDUPE_MS) ctx.seen.delete(seenToken);
+      }
+      // The same QR stays in front of the camera for several frames — ignore
+      // repeat hits instead of firing duplicate check-in requests.
+      if (now - (ctx.seen.get(token) || 0) < SCAN_DEDUPE_MS) return;
+      ctx.seen.set(token, now);
+    }
+
+    if (queueRef.current.length >= MAX_SCAN_QUEUE) {
+      setActiveScan((prev) => ({
+        token: prev?.token ?? token,
+        phase: prev?.phase ?? "error",
+        result: prev?.result,
+        error: prev?.error ?? "Scan queue is full.",
+        queued: queueRef.current.length,
+        notice: "Scan queue is full — wait for the current checks to finish.",
+      }));
+      return;
+    }
+
+    queueRef.current.push(token);
+    setActiveScan((prev) =>
+      prev ? { ...prev, queued: queueRef.current.length, notice: undefined } : prev
+    );
+    drainQueueRef.current?.();
+  }, []);
+
+  const continueFromModal = useCallback(() => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+    if (queueRef.current.length) drainQueueRef.current?.();
+    else setActiveScan(null);
+  }, []);
+
+  const stopCamera = useCallback(() => {
     const ctx = scannerRef.current;
     scannerRef.current = null;
     setScanning(false);
@@ -56,7 +148,14 @@ export default function AdminCheckIn() {
     if (ctx?.timer) clearTimeout(ctx.timer);
     if (ctx?.stream) ctx.stream.getTracks().forEach((t) => t.stop());
     if (videoRef.current) videoRef.current.srcObject = null;
-  };
+    ctx?.seen?.clear();
+    queueRef.current = [];
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+    setActiveScan((prev) => (prev ? { ...prev, queued: 0 } : prev));
+  }, []);
 
   const toggleTorch = async () => {
     const track = scannerRef.current?.track;
@@ -74,7 +173,8 @@ export default function AdminCheckIn() {
   // the video feed plus the built-in decoder (qr-decode.js) — no libraries,
   // no network. The <video> element must be in the DOM first, so the stream
   // is opened from an effect that runs AFTER the `scanning` state flips true
-  // and the element is rendered.
+  // and the element is rendered. A scan only queues work; it never stops the
+  // camera, so the stream and the decode loop stay live between tickets.
   useEffect(() => {
     if (!scanning) return;
     let cancelled = false;
@@ -115,7 +215,7 @@ export default function AdminCheckIn() {
         }
         setTorchSupported(supportsTorch);
         setTorchOn(false);
-        const ctx = { stream, track, timer: null, decoding: false };
+        const ctx = { stream, track, timer: null, decoding: false, seen: new Map() };
         scannerRef.current = ctx;
         const tick = () => {
           if (cancelled || !scannerRef.current || ctx.decoding) return;
@@ -140,9 +240,7 @@ export default function AdminCheckIn() {
               } catch {
                 /* haptics unsupported */
               }
-              stopCamera();
-              processValue(hit.text);
-              return;
+              enqueueCheckIn(hit.text);
             }
           } catch {
             /* frame not ready yet */
@@ -174,11 +272,14 @@ export default function AdminCheckIn() {
       cancelled = true;
       stopCamera();
     };
-  }, [scanning]);
+  }, [scanning, enqueueCheckIn, stopCamera]);
 
   const handleManual = (e) => {
     e.preventDefault();
-    if (manual.trim()) processValue(manual.trim());
+    const value = manual.trim();
+    if (!value) return;
+    enqueueCheckIn(value);
+    setManual("");
   };
 
   const cameraSupported =
@@ -229,7 +330,7 @@ export default function AdminCheckIn() {
                     <div className="h-44 w-44 rounded-2xl border-2 border-white/80 bg-white/10" />
                   </div>
                   <p className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/50 px-3 py-1 text-xs text-white">
-                    Point at the QR code
+                    Point at the QR code — camera stays on between scans
                   </p>
                 </div>
               ) : (
@@ -291,6 +392,8 @@ export default function AdminCheckIn() {
           )}
         </div>
       </div>
+
+      <CheckInProgressDialog scan={activeScan} onContinue={continueFromModal} />
     </div>
   );
 }
