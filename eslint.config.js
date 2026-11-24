@@ -1,16 +1,10 @@
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { FlatCompat } from '@eslint/eslintrc';
 import js from '@eslint/js';
+import nextCoreWebVitals from 'eslint-config-next/core-web-vitals';
 import globals from 'globals';
 import react from 'eslint-plugin-react';
 import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 import unusedImports from 'eslint-plugin-unused-imports';
-
-const compat = new FlatCompat({
-  baseDirectory: path.dirname(fileURLToPath(import.meta.url)),
-});
 
 const config = [
   {
@@ -25,7 +19,7 @@ const config = [
     ],
   },
   js.configs.recommended,
-  ...compat.extends('next/core-web-vitals'),
+  ...nextCoreWebVitals,
   {
     files: ['**/*.{js,jsx,mjs}'],
     languageOptions: {
@@ -34,9 +28,8 @@ const config = [
       parserOptions: { ecmaFeatures: { jsx: true } },
       globals: { ...globals.browser, ...globals.node },
     },
+    // Next's flat config already registers react and react-hooks.
     plugins: {
-      react,
-      'react-hooks': reactHooks,
       'react-refresh': reactRefresh,
       'unused-imports': unusedImports,
     },
@@ -54,6 +47,10 @@ const config = [
       'unused-imports/no-unused-imports': 'warn',
       'unused-imports/no-unused-vars': 'off',
       'react-refresh/only-export-components': 'off',
+      // This is a React 18 app; Next 16's preset enables React Compiler-era
+      // rules that assume React 19 semantics and flag existing data-loading effects.
+      'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/preserve-manual-memoization': 'off',
       // The app uses a react-router SPA shell and a custom image wrapper; Next's
       // Link/Image rules do not apply to those paths.
       '@next/next/no-html-link-for-pages': 'off',

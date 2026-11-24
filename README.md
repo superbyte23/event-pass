@@ -5,8 +5,8 @@
 ### Publish events. Take registrations. Scan tickets at the door.
 
 <p>
-  <img src="https://img.shields.io/badge/Next.js-15-black?style=flat-square&logo=next.js" alt="Next.js 15" />
-  <img src="https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react&logoColor=white" alt="React 18" />
+  <img src="https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js" alt="Next.js 16" />
+  <img src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=white" alt="React 19" />
   <img src="https://img.shields.io/badge/MongoDB-Mongoose-47A248?style=flat-square&logo=mongodb&logoColor=white" alt="MongoDB" />
   <img src="https://img.shields.io/badge/Auth.js-NextAuth-000000?style=flat-square" alt="Auth.js" />
   <img src="https://img.shields.io/badge/Deploy-Vercel-black?style=flat-square&logo=vercel" alt="Vercel" />
@@ -132,7 +132,7 @@ npm run build       # production build (needs no env vars)
 npm run start       # serve the production build
 npm run lint        # eslint, errors only
 npm run lint:fix    # eslint --fix
-npm run typecheck   # tsc over jsconfig (pre-existing errors only)
+npm run typecheck   # tsc over jsconfig
 npm run db:seed     # seed admin + sample event (uses MONGODB_URI)
 ```
 

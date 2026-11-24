@@ -2,7 +2,7 @@
 
 ## Project Context
 
-A Next.js 15 (App Router) deployment of an event registration app, migrated from Base44. All original pages/components and `react-router` routing are unchanged; only the injected Base44 `db` shim was replaced. Treat it as user-owned application code: keep changes focused on the request and preserve existing conventions.
+A Next.js 16 (App Router, React 19) deployment of an event registration app, migrated from Base44. All original pages/components and `react-router` routing are unchanged; only the injected Base44 `db` shim was replaced. Treat it as user-owned application code: keep changes focused on the request and preserve existing conventions.
 
 Start with `README.md` for setup, environment variables, and architecture.
 
@@ -23,4 +23,5 @@ Start with `README.md` for setup, environment variables, and architecture.
 - Server errors must return JSON `{ message }` with a proper HTTP status; the client reads `e.message` and `e.status`.
 - Do not trust client-supplied `user_id` on registrations — the server resolves it from the session (or null for guests).
 - Run `npm run lint` and `npm run typecheck` before finishing code changes; `npm run build` must stay green and must not require env vars.
-- Baseline status (2026-11-24): `npm run lint`, `npm run typecheck`, and `npm run build` all pass with no warnings. ESLint uses the Next.js flat-config bridge; Next-only Link/Image rules are off because the app uses a react-router SPA shell and a custom image wrapper. UI `React.forwardRef` wrappers carry a JSDoc render-function type, optional component props have defaults, and client errors that add `status`/`data` use an `ApiError` typedef; keep those conventions when editing shared components.
+- Baseline status (2026-11-24): `npm run lint`, `npm run typecheck`, and `npm run build` all pass with no warnings. ESLint uses Next 16's native flat config; Next-only Link/Image rules are off because the app uses a react-router SPA shell and a custom image wrapper, and the React Compiler-era hooks rules are off because the app still uses effect-based data loading. UI `React.forwardRef` wrappers carry a JSDoc render-function type, optional component props have defaults, and client errors that add `status`/`data` use an `ApiError` typedef; keep those conventions when editing shared components.
+- Dependency notes: `@vercel/blob` is pinned to 2.4.0 (later versions add an OIDC dependency with open advisories); the app only uses `put()` with `BLOB_READ_WRITE_TOKEN`. `nodemailer` stays on 7.x because NextAuth 4's optional peer caps it at `^7.0.7`; upgrading breaks plain `npm install`. Revisit both when upstream ships fixed versions.
