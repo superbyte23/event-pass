@@ -25,27 +25,37 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (!user?.id) return;
     Promise.all([
-      db.entities.Event.filter({ created_by: user.id }, "-created_date", 1000),
+      db.entities.Event.list("-created_date", 1000),
       db.entities.Registration.list("-created_date", 1000),
-    ]).then(([e, r]) => { setEvents(e || []); setRegs(r || []); }).catch(() => { setEvents([]); setRegs([]); });
+    ]).then(([e, r]) => {
+      // Same scope as the Events page: owned events plus events this admin was
+      // linked to. Registrations are counted only for those events so the
+      // summary cards and the table below always agree.
+      const visible = (e || []).filter(
+        (event) => event.created_by === user.id || (Array.isArray(event.linked_admin_ids) && event.linked_admin_ids.includes(user.id)),
+      );
+      const ids = new Set(visible.map((event) => event.id));
+      setEvents(visible);
+      setRegs((r || []).filter((reg) => ids.has(reg.event_id)));
+    }).catch(() => { setEvents([]); setRegs([]); });
   }, [user?.id]);
 
   if (!events || !regs) {
     return <div className="flex h-64 items-center justify-center"><div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" /></div>;
   }
 
+  const activeRegs = regs.filter((r) => r.status !== "cancelled");
   const totalEvents = events.length;
-  const totalRegs = regs.length;
-  const todayRegs = regs.filter((r) => isToday(r.created_date)).length;
-  const totalCheckIns = regs.filter((r) => r.status === "checked_in").length;
+  const totalRegs = activeRegs.length;
+  const todayRegs = activeRegs.filter((r) => isToday(r.created_date)).length;
+  const totalCheckIns = activeRegs.filter((r) => r.status === "checked_in").length;
 
   const perEvent = events.map((e) => {
-    const eventRegs = regs.filter((r) => r.event_id === e.id);
-    const confirmed = eventRegs.filter((r) => r.status !== "cancelled");
+    const eventRegs = activeRegs.filter((r) => r.event_id === e.id);
     const checkedIn = eventRegs.filter((r) => r.status === "checked_in").length;
     const capacity = e.max_attendees && e.max_attendees > 0 ? e.max_attendees : null;
-    const remaining = capacity !== null ? Math.max(0, capacity - confirmed.length) : null;
-    return { event: e, registrations: confirmed.length, capacity, remaining, checkedIn };
+    const remaining = capacity !== null ? Math.max(0, capacity - eventRegs.length) : null;
+    return { event: e, registrations: eventRegs.length, capacity, remaining, checkedIn };
   });
 
   const stats = [
