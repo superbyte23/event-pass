@@ -59,7 +59,7 @@ flowchart LR
 | **User** | Self or admin | Admin only |
 | **Setting** | Public | Admin only |
 
-Guests can search for tickets by email or name (`/find-ticket`), but opening a ticket (`/tickets/:registration`) requires a signed-in account; the API denies anonymous ticket reads as well.
+Guests can search for tickets by email or name (`/find-ticket`), but opening a ticket (`/tickets/:registration`) requires a signed-in account; the API denies anonymous ticket reads as well. The one exception is the signed download link in the ticket email: `/t/<code>?download=1` serves the ticket image directly without a session, because the HMAC signature proves the link came from an email.
 
 ---
 
@@ -100,11 +100,11 @@ Gmail accounts are managed at `/admin/mail-accounts`. Each admin can add their o
 
 Mail accounts can be backed up and restored with **Export** / **Import** on that page. The JSON export contains the stored AES-GCM credential payload (never the plaintext App Password) plus a `MAIL_CREDENTIALS_KEY` fingerprint. Imports are assigned to the signed-in admin; duplicate emails are skipped by default, or updated when **Update existing accounts** is enabled. Encrypted credentials restore only on a deployment using the same `MAIL_CREDENTIALS_KEY`; if the key differs, import reports the affected rows so the App Passwords can be re-entered. Keep exported files private.
 
-Ticket emails use a premium delivery template: branded header, two-column event details (Date/Time on the left, Venue on the right), an inline QR code, a **View your ticket** button, a **Download ticket image** link, and a support footer. There are no downloadable file attachments — the QR is an inline CID image (`cid:ticketqr`), which renders reliably in Gmail and other clients that strip data URIs. The download link redirects through `/t/[code]?download=1` to the official ticket page, which generates and downloads a high-resolution 4 × 6 portrait image.
+Ticket emails use a premium delivery template: branded header, two-column event details (Date/Time on the left, Venue on the right), an inline QR code, a **View your ticket** button, a **Download ticket image** link, and a support footer. There are no downloadable file attachments — the QR is an inline CID image (`cid:ticketqr`), which renders reliably in Gmail and other clients that strip data URIs. The **Download ticket image** link is the signed `/t/[code]?download=1` URL: it generates and downloads a high-resolution 4 × 6 portrait image without requiring sign-in. The adjacent **View your ticket** link still requires an account — it redirects to the official ticket page.
 
-Guests can download a 4 × 6 portrait WebP or JPEG that mirrors the current `TicketCard` UI: 4:3 cover header, two-column event details, perforated divider, guest/registration field-details list, and QR stub. The event cover is used as the header background when set (local `/uploads/...` files are read directly from disk; remote URLs are fetched). The download endpoint is `GET /api/tickets/[ticket]/image?format=webp|jpeg` and uses the normal ticket read permissions.
+Guests can download a 4 × 6 portrait WebP or JPEG that mirrors the current `TicketCard` UI: 4:3 cover header, two-column event details, perforated divider, guest/registration field-details list, and QR stub. The event cover is used as the header background when set (local `/uploads/...` files are read directly from disk; remote URLs are fetched). Signed-in users download via `GET /api/tickets/[ticket]/image?format=webp|jpeg`, which uses the normal ticket read permissions; guests use the signed email link, which authorizes the same image builder with the short-link HMAC instead of a session.
 
-Ticket links in emails are shortened to `/t/<code>` and signed with `SHORT_LINK_SECRET` (falls back to `NEXTAUTH_SECRET`/`MAIL_CREDENTIALS_KEY`). The route redirects to the full `/tickets/[id]` page, so changing the secret invalidates previously sent email links.
+Ticket links in emails are shortened to `/t/<code>` and signed with `SHORT_LINK_SECRET` (falls back to `NEXTAUTH_SECRET`/`MAIL_CREDENTIALS_KEY`). The view link redirects to the full `/tickets/[id]` page while the download link serves the image directly, so changing the secret invalidates previously sent email links.
 
 An event owner can link other admins to an event from the **Admins** button on the event card or event detail page. Linked admins see that event in their own admin list and can view/manage it even while unpublished. Only the owner can add or remove links; legacy events with no owner can be managed by any admin.
 

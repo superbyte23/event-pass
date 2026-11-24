@@ -1,16 +1,16 @@
-import { NextResponse } from 'next/server';
-
 import { errorResponse } from '@/server/http';
 import { getEntity } from '@/server/entity-api';
-import { getAppUrl } from '@/server/mail-config';
 import { getSessionUser } from '@/server/session';
-import { buildTicketImage } from '@/server/ticket-image';
+import { ticketImageResponse } from '@/server/ticket-download';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request, context) {
   try {
     const { ticket } = await context.params;
+    // Session-based downloads keep the normal entity read rules. Signed email
+    // downloads go through /t/[code]?download=1 instead, which verifies the
+    // short-link HMAC before loading the ticket.
     const user = await getSessionUser(request);
     const registration = await getEntity('Registration', ticket, user);
     const event = registration.event_id
@@ -37,23 +37,7 @@ export async function GET(request, context) {
 
     const url = new URL(request.url);
     const format = url.searchParams.get('format') === 'jpeg' ? 'jpeg' : 'webp';
-    const buffer = await buildTicketImage({
-      event: event || {},
-      registration,
-      guest,
-      appUrl: getAppUrl(),
-      format,
-    });
-
-    const safeName = String(registration.registration_number || 'ticket').replace(/[^a-zA-Z0-9_-]/g, '-');
-    const extension = format === 'jpeg' ? 'jpg' : 'webp';
-    return new NextResponse(new Uint8Array(buffer), {
-      headers: {
-        'Content-Type': format === 'jpeg' ? 'image/jpeg' : 'image/webp',
-        'Content-Disposition': `attachment; filename="ticket-${safeName}.${extension}"`,
-        'Cache-Control': 'private, max-age=300',
-      },
-    });
+    return await ticketImageResponse({ registration, event, guest, format });
   } catch (error) {
     return errorResponse(error);
   }
