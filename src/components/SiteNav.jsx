@@ -72,7 +72,7 @@ function MobileMenu({ onNavigate }) {
   );
 }
 
-function NavLinks({ onNavigate }) {
+function NavLinks({ onNavigate = undefined }) {
   const { isAuthenticated, user, logout } = useAuth();
   const navigate = useNavigate();
   const go = (path) => {

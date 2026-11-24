@@ -1,6 +1,6 @@
 import { db } from "@/api/db";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 
 import { useAuth } from "@/lib/AuthContext";
@@ -20,14 +20,14 @@ export default function AdminRegistrationDetail() {
   const [guest, setGuest] = useState(null);
   const [busy, setBusy] = useState(false);
 
-  const load = () => {
+  const load = useCallback(() => {
     db.entities.Registration.get(registration).then(async (r) => {
       setReg(r);
       try { setEvent(await db.entities.Event.get(r.event_id)); } catch { setEvent(null); }
       try { setGuest(await resolveAttendeeProfile(r, user)); } catch { setGuest(null); }
     }).catch(() => setReg(null));
-  };
-  useEffect(() => { load(); }, [registration, user]);
+  }, [registration, user]);
+  useEffect(() => { load(); }, [load]);
 
   const update = async (data) => {
     setBusy(true);

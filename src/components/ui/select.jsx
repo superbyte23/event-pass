@@ -39,14 +39,14 @@ function collectItemLabels(node, map) {
 }
 
 const Select = ({
-  value: valueProp,
-  defaultValue,
-  onValueChange,
-  open: openProp,
-  onOpenChange,
+  value: valueProp = undefined,
+  defaultValue = undefined,
+  onValueChange = undefined,
+  open: openProp = undefined,
+  onOpenChange = undefined,
   disabled = false,
   multiple = false,
-  children,
+  children = undefined,
 }) => {
   const [internalOpen, setInternalOpen] = React.useState(false)
   const open = openProp !== undefined ? openProp : internalOpen
@@ -101,7 +101,7 @@ const Select = ({
   )
 }
 
-const SelectValue = React.forwardRef(({ className, placeholder, ...props }, ref) => {
+const SelectValue = React.forwardRef(/** @type {React.ForwardRefRenderFunction<any, any>} */ (({ className, placeholder, ...props }, ref) => {
   const { value, labels, multiple } = useSelect()
   const hasValue = multiple
     ? Array.isArray(value) && value.length > 0
@@ -129,10 +129,10 @@ const SelectValue = React.forwardRef(({ className, placeholder, ...props }, ref)
       {label ?? placeholder}
     </span>
   )
-})
+}))
 SelectValue.displayName = "SelectValue"
 
-const SelectTrigger = React.forwardRef(({ className, children, ...props }, ref) => {
+const SelectTrigger = React.forwardRef(/** @type {React.ForwardRefRenderFunction<any, any>} */ (({ className, children, ...props }, ref) => {
   const { disabled } = useSelect()
   return (
     <PopoverPrimitive.Trigger asChild>
@@ -150,11 +150,11 @@ const SelectTrigger = React.forwardRef(({ className, children, ...props }, ref) 
       </button>
     </PopoverPrimitive.Trigger>
   )
-})
+}))
 SelectTrigger.displayName = "SelectTrigger"
 
 const SelectContent = React.forwardRef(
-  ({ className, children, align = "start", sideOffset = 4, ...props }, ref) => {
+  /** @type {React.ForwardRefRenderFunction<any, any>} */ (({ className, children, align = "start", sideOffset = 4, ...props }, ref) => {
     const { open } = useSelect()
     const [search, setSearch] = React.useState("")
     const inputRef = React.useRef(null)
@@ -188,24 +188,24 @@ const SelectContent = React.forwardRef(
         </PopoverPrimitive.Content>
       </PopoverPrimitive.Portal>
     )
-  }
+  })
 )
 SelectContent.displayName = "SelectContent"
 
-const SelectGroup = React.forwardRef(({ className, ...props }, ref) => (
+const SelectGroup = React.forwardRef(/** @type {React.ForwardRefRenderFunction<any, any>} */ (({ className, ...props }, ref) => (
   <CommandGroup ref={ref} className={className} {...props} />
-))
+)))
 SelectGroup.displayName = "SelectGroup"
 
-const SelectLabel = React.forwardRef(({ className, ...props }, ref) => (
+const SelectLabel = React.forwardRef(/** @type {React.ForwardRefRenderFunction<any, any>} */ (({ className, ...props }, ref) => (
   <div
     ref={ref}
     className={cn("px-2 py-1.5 text-sm font-semibold", className)}
     {...props} />
-))
+)))
 SelectLabel.displayName = "SelectLabel"
 
-const SelectItem = React.forwardRef(({ className, children, value: itemValue, ...props }, ref) => {
+const SelectItem = React.forwardRef(/** @type {React.ForwardRefRenderFunction<any, any>} */ (({ className, children, value: itemValue, ...props }, ref) => {
   const { value, setValue, multiple } = useSelect()
   const label = nodeToText(children) || String(itemValue ?? "")
   const selected = multiple
@@ -226,12 +226,12 @@ const SelectItem = React.forwardRef(({ className, children, value: itemValue, ..
       <span className="block truncate">{children}</span>
     </CommandItem>
   )
-})
+}))
 SelectItem.displayName = "SelectItem"
 
-const SelectSeparator = React.forwardRef(({ className, ...props }, ref) => (
+const SelectSeparator = React.forwardRef(/** @type {React.ForwardRefRenderFunction<any, any>} */ (({ className, ...props }, ref) => (
   <CommandSeparator ref={ref} className={cn("-mx-1 my-1 h-px bg-muted", className)} {...props} />
-))
+)))
 SelectSeparator.displayName = "SelectSeparator"
 
 const SelectScrollUpButton = () => null

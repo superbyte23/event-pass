@@ -12,11 +12,11 @@ import { cn } from "@/lib/utils";
 export default function Avatar({
   src,
   name,
-  email,
+  email = "",
   alt = "",
   className,
   fallbackClassName,
-  style,
+  style = undefined,
   ...props
 }) {
   const [failed, setFailed] = useState(false);

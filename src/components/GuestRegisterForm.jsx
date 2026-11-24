@@ -14,7 +14,7 @@ export default function GuestRegisterForm({ event }) {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [responses, setResponses] = useState({});
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useState(/** @type {Record<string, string>} */ ({}));
   const [status, setStatus] = useState("idle");
   const [error, setError] = useState("");
   const submittingRef = useRef(false);
@@ -25,7 +25,7 @@ export default function GuestRegisterForm({ event }) {
   const onFieldChange = (id, val) => setResponses((r) => ({ ...r, [id]: val }));
 
   const validate = () => {
-    const e = {};
+    const e = /** @type {Record<string, string>} */ ({});
     if (!email.trim()) e.email = "Email is required.";
     else if (!EMAIL_RE.test(email.trim())) e.email = "Enter a valid email address.";
     (fields || []).forEach((f) => {

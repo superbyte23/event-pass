@@ -42,7 +42,7 @@ function formatDisplay(iso) {
 }
 
 export const DateTimePicker = React.forwardRef(
-  ({ value, onChange, placeholder = "Pick a date & time…", id, className }, ref) => {
+  /** @type {React.ForwardRefRenderFunction<any, any>} */ (({ value, onChange, placeholder = "Pick a date & time…", id, className }, ref) => {
     const [open, setOpen] = React.useState(false)
     const parts = toLocalParts(value)
     const selected = parts.date ? new Date(`${parts.date}T00:00:00`) : undefined
@@ -114,7 +114,7 @@ export const DateTimePicker = React.forwardRef(
         </PopoverContent>
       </Popover>
     )
-  }
+  })
 )
 
 DateTimePicker.displayName = "DateTimePicker"

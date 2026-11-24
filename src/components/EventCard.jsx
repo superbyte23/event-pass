@@ -4,13 +4,13 @@ import { EventStatusBadge } from "@/components/StatusBadge";
 import { formatDateShort, timeRangeLabel } from "@/lib/event-utils";
 import { MapPin, CalendarDays, Clock } from "lucide-react";
 
-export default function EventCard({ event, footer }) {
+export default function EventCard({ event, footer = undefined }) {
   return (
     <div className="group overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5">
       <Link to={`/events/${event.slug}`} className="block">
         <div className="relative aspect-[16/9] overflow-hidden bg-muted">
           {event.cover_image ? (
-            <Image src={event.cover_image} fittingType="fill" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+            <Image alt="" src={event.cover_image} fittingType="fill" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
           ) : (
             <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400">
               <CalendarDays className="w-10 h-10" />
@@ -21,7 +21,7 @@ export default function EventCard({ event, footer }) {
           </div>
           {event.logo && (
             <div className="absolute right-3 top-3 h-10 w-10 overflow-hidden rounded-lg border-2 border-white bg-white shadow-sm">
-              <Image src={event.logo} fittingType="fill" className="h-full w-full object-contain" />
+              <Image alt="" src={event.logo} fittingType="fill" className="h-full w-full object-contain" />
             </div>
           )}
         </div>

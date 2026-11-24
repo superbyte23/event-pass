@@ -35,14 +35,14 @@ export default function TicketCard({ reg, event, guest }) {
       >
         {event?.cover_image && (
           <div aria-hidden="true" className="absolute inset-0">
-            <Image src={event.cover_image} fittingType="fill" className="h-full w-full object-cover" />
+            <Image alt="" src={event.cover_image} fittingType="fill" className="h-full w-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/45 to-black/25" />
           </div>
         )}
         <div className="relative flex items-center gap-3">
           {event?.logo ? (
             <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-white p-1">
-              <Image src={event.logo} fittingType="fill" className="h-full w-full object-contain" />
+              <Image alt="" src={event.logo} fittingType="fill" className="h-full w-full object-contain" />
             </div>
           ) : (
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/15 text-white">
@@ -119,7 +119,7 @@ export default function TicketCard({ reg, event, guest }) {
   );
 }
 
-function Detail({ icon: Icon, label, value, sub }) {
+function Detail({ icon: Icon, label, value, sub = undefined }) {
   return (
     <div>
       <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-slate-400">

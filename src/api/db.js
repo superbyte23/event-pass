@@ -1,5 +1,7 @@
 const API_BASE = '/api';
 
+/** @typedef {Error & { status?: number, data?: any }} ApiError */
+
 // ---------------------------------------------------------------------------
 // Low-level fetch: same error shape the Base44 SDK threw ({ status, message })
 // so existing catch blocks keep working.
@@ -26,7 +28,7 @@ async function request(path, options = {}) {
   }
 
   if (!response.ok) {
-    const error = new Error(data?.message || `Request failed (${response.status}).`);
+    const error = /** @type {ApiError} */ (new Error(data?.message || `Request failed (${response.status}).`));
     error.status = response.status;
     error.data = data;
     throw error;
@@ -136,7 +138,7 @@ export const db = {
         } catch {
           // Keep the generic message for non-JSON errors.
         }
-        const error = new Error(message);
+        const error = /** @type {ApiError} */ (new Error(message));
         error.status = response.status;
         throw error;
       }
@@ -162,7 +164,7 @@ export const db = {
         res.ok ? res.json() : null,
       );
       if (!csrf?.csrfToken) {
-        const error = new Error('Could not start Google sign-in. Please try again.');
+        const error = /** @type {ApiError} */ (new Error('Could not start Google sign-in. Please try again.'));
         error.status = 500;
         throw error;
       }
@@ -189,7 +191,7 @@ export const db = {
         redirect: false,
       });
       if (!result || result.error) {
-        const error = new Error('Invalid admin email or password.');
+        const error = /** @type {ApiError} */ (new Error('Invalid admin email or password.'));
         error.status = 401;
         throw error;
       }

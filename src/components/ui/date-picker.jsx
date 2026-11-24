@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
-export const DatePicker = React.forwardRef(({ value, onChange, placeholder = "Pick a date…", id, className }, ref) => {
+export const DatePicker = React.forwardRef(/** @type {React.ForwardRefRenderFunction<any, any>} */ (({ value, onChange, placeholder = "Pick a date…", id, className }, ref) => {
   const [open, setOpen] = React.useState(false)
   const selected = value ? new Date(`${value}T00:00:00`) : undefined
   const display = value ? format(new Date(`${value}T00:00:00`), "EEE, MMM d, yyyy") : null
@@ -77,6 +77,6 @@ export const DatePicker = React.forwardRef(({ value, onChange, placeholder = "Pi
       </PopoverContent>
     </Popover>
   )
-})
+}))
 
 DatePicker.displayName = "DatePicker"

@@ -35,7 +35,7 @@ function mergeForm(ev) {
   return merged;
 }
 
-export default function EventForm({ initialEvent, onSubmit, submitting, submitLabel = "Save event" }) {
+export default function EventForm({ initialEvent = undefined, onSubmit, submitting, submitLabel = "Save event" }) {
   const [form, setForm] = useState(() => mergeForm(initialEvent));
   const [slugTouched, setSlugTouched] = useState(!!initialEvent?.slug);
 

@@ -4,7 +4,7 @@ import { buildSrcSet, buildTransformUrl, splitImageProps } from "./image-helpers
 import { useResponsiveImage } from "./use-responsive-image"
 
 export const ResponsiveImage = React.forwardRef(
-  ({ src, parsed, fittingType, focalPoint, quality, className, style, aspectRatio, onLoad, onSourceChange, ...props }, ref) => {
+  /** @type {React.ForwardRefRenderFunction<any, any>} */ (({ src, parsed, fittingType, focalPoint, quality, className, style, aspectRatio, onLoad, onSourceChange, ...props }, ref) => {
     const { wrapperRef, imgRef, loaded, options, handleLoad } = useResponsiveImage(
       { parsed, fittingType, focalPoint, quality, className, onLoad, onSourceChange }, ref
     )
@@ -48,6 +48,7 @@ export const ResponsiveImage = React.forwardRef(
               ref={imgRef}
               src={buildTransformUrl(parsed, options)}
               srcSet={buildSrcSet(parsed, options)}
+              alt=""
               loading="lazy"
               className={cn(
                 "w-full h-full inset-0 absolute",
@@ -60,6 +61,6 @@ export const ResponsiveImage = React.forwardRef(
         </span>
       </span>
     )
-  }
+  })
 )
 ResponsiveImage.displayName = "ResponsiveImage"

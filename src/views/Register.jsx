@@ -45,7 +45,7 @@ export default function Register() {
         else setChecking(false);
       })
       .catch(() => setChecking(false));
-  }, [event, isAuthenticated]);
+  }, [event, isAuthenticated, googleMode, navigate, user?.id]);
 
   const availability = event ? registrationAvailability(event, null) : null;
 
@@ -125,7 +125,7 @@ export default function Register() {
         <div className="flex items-center gap-4">
           {event.logo ? (
             <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-border bg-white">
-              <Image src={event.logo} fittingType="fill" className="h-full w-full object-contain" />
+              <Image alt="" src={event.logo} fittingType="fill" className="h-full w-full object-contain" />
             </div>
           ) : null}
           <div className="min-w-0">

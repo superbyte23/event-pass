@@ -82,7 +82,7 @@ export async function registerForEvent(event, user, responses = {}) {
   }
   const active = (recheck || []).filter((r) => r.status !== "cancelled");
   if (active.length > 1) {
-    const sorted = active.sort((a, b) => new Date(a.created_date) - new Date(b.created_date));
+    const sorted = active.sort((a, b) => new Date(a.created_date).getTime() - new Date(b.created_date).getTime());
     const keep = sorted[0];
     await Promise.all(sorted.slice(1).map((d) => db.entities.Registration.delete(d.id).catch(() => {})));
     return { already_registered: true, registration: keep };
@@ -111,7 +111,7 @@ export async function findGuestTickets({ query, email, eventId } = {}) {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const err = new Error(data?.message || "Could not look up your tickets.");
+    const err = /** @type {Error & { status?: number }} */ (new Error(data?.message || "Could not look up your tickets."));
     err.status = res.status;
     throw err;
   }
@@ -178,7 +178,7 @@ export async function registerGuestForEvent(event, guest, responses = {}) {
   }
   const active = (recheck || []).filter((r) => r.status !== "cancelled");
   if (active.length > 1) {
-    const sorted = active.sort((a, b) => new Date(a.created_date) - new Date(b.created_date));
+    const sorted = active.sort((a, b) => new Date(a.created_date).getTime() - new Date(b.created_date).getTime());
     const keep = sorted[0];
     await Promise.all(sorted.slice(1).map((d) => db.entities.Registration.delete(d.id).catch(() => {})));
     return { already_registered: true, registration: keep };

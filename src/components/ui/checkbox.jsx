@@ -4,7 +4,7 @@ import { Check } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
-const Checkbox = React.forwardRef(({ className, indeterminate, ...props }, ref) => {
+const Checkbox = React.forwardRef(/** @type {React.ForwardRefRenderFunction<any, any>} */ (({ className, indeterminate, ...props }, ref) => {
   const inputRef = React.useRef(null)
   const composedRefs = React.useCallback((node) => {
     inputRef.current = node
@@ -31,7 +31,7 @@ const Checkbox = React.forwardRef(({ className, indeterminate, ...props }, ref) 
       </CheckboxPrimitive.Indicator>
     </CheckboxPrimitive.Root>
   )
-})
+}))
 Checkbox.displayName = CheckboxPrimitive.Root.displayName
 
 export { Checkbox }

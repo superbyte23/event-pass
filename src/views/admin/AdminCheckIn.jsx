@@ -174,7 +174,6 @@ export default function AdminCheckIn() {
       cancelled = true;
       stopCamera();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanning]);
 
   const handleManual = (e) => {

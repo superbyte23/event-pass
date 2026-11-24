@@ -44,7 +44,7 @@ export default function EventDetail() {
         .then((list) => setConfirmedCount((list || []).length))
         .catch(() => setConfirmedCount(null));
     }
-  }, [event, user]);
+  }, [event, user, googleMode]);
 
   const availability = event ? registrationAvailability(event, confirmedCount) : null;
 
@@ -71,7 +71,7 @@ export default function EventDetail() {
       <div className="relative">
         <div className="relative h-56 w-full overflow-hidden bg-muted sm:h-80">
           {event.cover_image ? (
-            <Image src={event.cover_image} fittingType="fill" className="h-full w-full object-cover" />
+            <Image alt="" src={event.cover_image} fittingType="fill" className="h-full w-full object-cover" />
           ) : (
             <div className="h-full w-full bg-gradient-to-br from-slate-200 to-slate-400" />
           )}
@@ -80,7 +80,7 @@ export default function EventDetail() {
             <div className="flex items-end gap-4">
               {event.logo && (
                 <div className="hidden sm:block h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 border-white bg-white shadow-md">
-                  <Image src={event.logo} fittingType="fill" className="h-full w-full object-contain" />
+                  <Image alt="" src={event.logo} fittingType="fill" className="h-full w-full object-contain" />
                 </div>
               )}
               <div className="text-white">
@@ -173,7 +173,7 @@ export default function EventDetail() {
   );
 }
 
-function DetailTile({ icon: Icon, label, value, sub }) {
+function DetailTile({ icon: Icon, label, value, sub = undefined }) {
   return (
     <div className="rounded-xl border border-border bg-card p-4">
       <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">

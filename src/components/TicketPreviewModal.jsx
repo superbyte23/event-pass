@@ -6,7 +6,7 @@ import { formatDateTime } from "@/lib/event-utils";
 import { CheckCheck, X } from "lucide-react";
 
 // Admin-side preview of the ticket attendees see, without leaving the admin page.
-export default function TicketPreviewModal({ reg, event, guest, onClose, footer }) {
+export default function TicketPreviewModal({ reg, event, guest, onClose, footer = undefined }) {
   useEffect(() => {
     if (!reg) return;
     const onKeyDown = (e) => { if (e.key === "Escape") onClose(); };

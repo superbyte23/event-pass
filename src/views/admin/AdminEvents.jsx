@@ -1,6 +1,6 @@
 import { db } from "@/api/db";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { useAuth } from "@/lib/AuthContext";
@@ -16,13 +16,13 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 
 export default function AdminEvents() {
   const { user } = useAuth();
-  const { confirm, close: closeConfirm, ConfirmDialog } = useConfirm();
+  const { confirm, ConfirmDialog } = useConfirm();
   const [events, setEvents] = useState(null);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [adminEvent, setAdminEvent] = useState(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const l = await db.entities.Event.list("-created_date", 1000);
@@ -35,8 +35,8 @@ export default function AdminEvents() {
     } finally {
       setLoading(false);
     }
-  };
-  useEffect(() => { load(); }, [user?.id]);
+  }, [user?.id]);
+  useEffect(() => { load(); }, [load]);
 
   const filtered = events ? events.filter((e) => {
     const q = query.trim().toLowerCase();
@@ -92,7 +92,7 @@ export default function AdminEvents() {
           {filtered.map((e) => (
             <Card key={e.id} className="overflow-hidden">
               <div className="relative aspect-[16/9] bg-muted">
-                {e.cover_image ? <Image src={e.cover_image} fittingType="fill" className="h-full w-full object-cover" /> : <div className="h-full w-full bg-gradient-to-br from-slate-100 to-slate-200" />}
+                {e.cover_image ? <Image alt="" src={e.cover_image} fittingType="fill" className="h-full w-full object-cover" /> : <div className="h-full w-full bg-gradient-to-br from-slate-100 to-slate-200" />}
                 <div className="absolute left-2 top-2"><EventStatusBadge status={e.status} className="bg-white/90" /></div>
                 {!e.published && <div className="absolute right-2 top-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">Unpublished</div>}
               </div>

@@ -1,10 +1,10 @@
 import { db } from "@/api/db";
 
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 
 import { appParams } from '@/lib/app-params';
 
-const AuthContext = createContext();
+const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -16,11 +16,7 @@ export const AuthProvider = ({ children }) => {
   const [appPublicSettings, setAppPublicSettings] = useState(null); // Contains only { id, public_settings }
   const [googleAuthEnabled, setGoogleAuthEnabled] = useState(true);
 
-  useEffect(() => {
-    checkAppState();
-  }, []);
-
-  const loadAuthMode = async () => {
+  const loadAuthMode = useCallback(async () => {
     try {
       const settings = await db.entities.Setting.list();
       const s = settings && settings[0];
@@ -28,18 +24,39 @@ export const AuthProvider = ({ children }) => {
     } catch {
       setGoogleAuthEnabled(true);
     }
-  };
+  }, []);
 
-  const checkAppState = async () => {
+  const checkUserAuth = useCallback(async () => {
+    try {
+      // Now check if the user is authenticated
+      setIsLoadingAuth(true);
+      const currentUser = await db.auth.me();
+      setUser(currentUser);
+      setIsAuthenticated(true);
+      setIsLoadingAuth(false);
+      setAuthChecked(true);
+    } catch (error) {
+      // A 401/403 just means "not signed in" — a normal state on public pages,
+      // so we neither log it nor raise authError (which would force a redirect).
+      if (error?.status !== 401 && error?.status !== 403) {
+        console.error('User auth check failed:', error);
+      }
+      setIsLoadingAuth(false);
+      setIsAuthenticated(false);
+      setAuthChecked(true);
+    }
+  }, []);
+
+  const checkAppState = useCallback(async () => {
     try {
       setIsLoadingPublicSettings(true);
       setAuthError(null);
-      
+
       try {
         const publicSettings = await db.app.getPublicSettings();
         setAppPublicSettings(publicSettings);
         loadAuthMode();
-        
+
         // If we got the app public settings successfully, check if user is authenticated
         if (appParams.token) {
           await checkUserAuth();
@@ -51,7 +68,7 @@ export const AuthProvider = ({ children }) => {
         setIsLoadingPublicSettings(false);
       } catch (appError) {
         console.error('App state check failed:', appError);
-        
+
         // Handle app-level errors
         if (appError.status === 403 && appError.data?.extra_data?.reason) {
           const reason = appError.data.extra_data.reason;
@@ -89,33 +106,16 @@ export const AuthProvider = ({ children }) => {
       setIsLoadingPublicSettings(false);
       setIsLoadingAuth(false);
     }
-  };
+  }, [loadAuthMode, checkUserAuth]);
 
-  const checkUserAuth = async () => {
-    try {
-      // Now check if the user is authenticated
-      setIsLoadingAuth(true);
-      const currentUser = await db.auth.me();
-      setUser(currentUser);
-      setIsAuthenticated(true);
-      setIsLoadingAuth(false);
-      setAuthChecked(true);
-    } catch (error) {
-      // A 401/403 just means "not signed in" — a normal state on public pages,
-      // so we neither log it nor raise authError (which would force a redirect).
-      if (error?.status !== 401 && error?.status !== 403) {
-        console.error('User auth check failed:', error);
-      }
-      setIsLoadingAuth(false);
-      setIsAuthenticated(false);
-      setAuthChecked(true);
-    }
-  };
+  useEffect(() => {
+    checkAppState();
+  }, [checkAppState]);
 
   const logout = (shouldRedirect = true) => {
     setUser(null);
     setIsAuthenticated(false);
-    
+
     if (shouldRedirect) {
       // Use the SDK's logout method which handles token cleanup and redirect
       db.auth.logout(window.location.href);

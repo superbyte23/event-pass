@@ -31,7 +31,7 @@ export default function ImageUpload({ value, onChange, label, hint, aspect = "as
       <div className={cn("relative overflow-hidden rounded-xl border border-dashed border-border bg-muted/40", aspect)}>
         {value ? (
           <>
-            <Image src={value} fittingType="fill" className="h-full w-full object-cover" />
+            <Image alt="" src={value} fittingType="fill" className="h-full w-full object-cover" />
             <button
               type="button"
               onClick={() => onChange("")}

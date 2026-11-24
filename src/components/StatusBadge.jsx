@@ -4,12 +4,12 @@ import { eventStatusInfo, regStatusInfo } from "@/lib/event-utils";
 const base =
   "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium";
 
-export function EventStatusBadge({ status, className }) {
+export function EventStatusBadge({ status, className = undefined }) {
   const info = eventStatusInfo(status);
   return <span className={cn(base, info.className, className)}>{info.label}</span>;
 }
 
-export function RegStatusBadge({ status, className }) {
+export function RegStatusBadge({ status, className = undefined }) {
   const info = regStatusInfo(status);
   return <span className={cn(base, info.className, className)}>{info.label}</span>;
 }

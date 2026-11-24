@@ -6,7 +6,7 @@ import Avatar from "@/components/Avatar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { formatDate } from "@/lib/event-utils";
-import { Ticket, LogOut, Mail, ShieldCheck, CalendarDays } from "lucide-react";
+import { Ticket, LogOut, Mail, ShieldCheck } from "lucide-react";
 
 export default function Profile() {
   const { user, logout } = useAuth();

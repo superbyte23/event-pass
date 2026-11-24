@@ -1,6 +1,6 @@
 import React from "react";
 
-export default function AuthLayout({ icon: Icon, title, subtitle, footer, children, maxWidth = "max-w-md" }) {
+export default function AuthLayout({ icon: Icon, title, subtitle, footer = undefined, children, maxWidth = "max-w-md" }) {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <div className={`w-full ${maxWidth}`}>

@@ -26,7 +26,7 @@ function polar(i, count, radius, cx, cy) {
   return { x: cx + radius * Math.cos(angle), y: cy + radius * Math.sin(angle) }
 }
 
-export const TimePicker = React.forwardRef(({ value, onChange, placeholder = "Pick a time…", id, className }, ref) => {
+export const TimePicker = React.forwardRef(/** @type {React.ForwardRefRenderFunction<any, any>} */ (({ value, onChange, placeholder = "Pick a time…", id, className }, ref) => {
   const [open, setOpen] = React.useState(false)
   const [mode, setMode] = React.useState("hour")
 
@@ -161,6 +161,6 @@ export const TimePicker = React.forwardRef(({ value, onChange, placeholder = "Pi
       </PopoverContent>
     </Popover>
   )
-})
+}))
 
 TimePicker.displayName = "TimePicker"

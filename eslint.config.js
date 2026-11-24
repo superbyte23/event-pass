@@ -1,3 +1,6 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { FlatCompat } from '@eslint/eslintrc';
 import js from '@eslint/js';
 import globals from 'globals';
 import react from 'eslint-plugin-react';
@@ -5,7 +8,11 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 import unusedImports from 'eslint-plugin-unused-imports';
 
-export default [
+const compat = new FlatCompat({
+  baseDirectory: path.dirname(fileURLToPath(import.meta.url)),
+});
+
+const config = [
   {
     ignores: [
       '.next/**',
@@ -18,6 +25,7 @@ export default [
     ],
   },
   js.configs.recommended,
+  ...compat.extends('next/core-web-vitals'),
   {
     files: ['**/*.{js,jsx,mjs}'],
     languageOptions: {
@@ -46,6 +54,12 @@ export default [
       'unused-imports/no-unused-imports': 'warn',
       'unused-imports/no-unused-vars': 'off',
       'react-refresh/only-export-components': 'off',
+      // The app uses a react-router SPA shell and a custom image wrapper; Next's
+      // Link/Image rules do not apply to those paths.
+      '@next/next/no-html-link-for-pages': 'off',
+      '@next/next/no-img-element': 'off',
     },
   },
 ];
+
+export default config;

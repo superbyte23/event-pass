@@ -4,7 +4,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
-import { fieldHasOptions } from "@/lib/event-utils";
 
 export default function FormRenderer({ fields, responses, onFieldChange, errors }) {
   if (!fields || fields.length === 0) return null;

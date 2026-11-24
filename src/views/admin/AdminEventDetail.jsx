@@ -1,6 +1,6 @@
 import { db } from "@/api/db";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
@@ -10,23 +10,23 @@ import { EventStatusBadge, RegStatusBadge } from "@/components/StatusBadge";
 import TicketPreviewModal from "@/components/TicketPreviewModal";
 import EventAdminsDialog from "@/components/EventAdminsDialog";
 import { formatDate, formatDateShort, formatDateTime, timeRangeLabel } from "@/lib/event-utils";
-import { Pencil, Users, UserPlus, ExternalLink, Trash2, Eye, ArrowLeft, Globe, GlobeLock, List, Ticket as TicketIcon } from "lucide-react";
+import { Pencil, Users, UserPlus, ExternalLink, Trash2, Eye, ArrowLeft, Globe, GlobeLock, Ticket as TicketIcon } from "lucide-react";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 
 export default function AdminEventDetail() {
   const { event: eventId } = useParams();
   const navigate = useNavigate();
-  const { confirm, close: closeConfirm, ConfirmDialog } = useConfirm();
+  const { confirm, ConfirmDialog } = useConfirm();
   const [event, setEvent] = useState(undefined);
   const [regs, setRegs] = useState([]);
   const [ticketReg, setTicketReg] = useState(null);
   const [adminsOpen, setAdminsOpen] = useState(false);
 
-  const load = () => {
+  const load = useCallback(() => {
     db.entities.Event.get(eventId).then(setEvent).catch(() => setEvent(null));
     db.entities.Registration.filter({ event_id: eventId }).then((l) => setRegs(l || [])).catch(() => setRegs([]));
-  };
-  useEffect(() => { load(); }, [eventId]);
+  }, [eventId]);
+  useEffect(() => { load(); }, [load]);
 
   if (event === undefined) return <div className="flex h-64 items-center justify-center"><div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" /></div>;
   if (event === null) return <div className="py-20 text-center text-muted-foreground">Event not found. <Link to="/admin/events" className="text-primary hover:underline">Back to events</Link></div>;
@@ -35,7 +35,7 @@ export default function AdminEventDetail() {
   const checkedIn = regs.filter((r) => r.status === "checked_in").length;
   const capacity = event.max_attendees && event.max_attendees > 0 ? event.max_attendees : null;
   const remaining = capacity !== null ? Math.max(0, capacity - confirmed.length) : null;
-  const recent = [...regs].sort((a, b) => new Date(b.created_date) - new Date(a.created_date)).slice(0, 5);
+  const recent = [...regs].sort((a, b) => new Date(b.created_date).getTime() - new Date(a.created_date).getTime()).slice(0, 5);
   const formFields = event?.form_fields || [];
 
   const togglePublish = async () => { await db.entities.Event.update(event.id, { published: !event.published }); load(); };
@@ -58,10 +58,10 @@ export default function AdminEventDetail() {
 
       <div className="overflow-hidden rounded-2xl border border-border bg-card">
         <div className="relative h-40 bg-muted sm:h-52">
-          {event.cover_image ? <Image src={event.cover_image} fittingType="fill" className="h-full w-full object-cover" /> : <div className="h-full w-full bg-gradient-to-br from-slate-200 to-slate-400" />}
+          {event.cover_image ? <Image alt="" src={event.cover_image} fittingType="fill" className="h-full w-full object-cover" /> : <div className="h-full w-full bg-gradient-to-br from-slate-200 to-slate-400" />}
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
           <div className="absolute bottom-0 left-0 right-0 flex items-end gap-3 p-5">
-            {event.logo && <div className="h-12 w-12 overflow-hidden rounded-lg border-2 border-white bg-white"><Image src={event.logo} fittingType="fill" className="h-full w-full object-contain" /></div>}
+            {event.logo && <div className="h-12 w-12 overflow-hidden rounded-lg border-2 border-white bg-white"><Image alt="" src={event.logo} fittingType="fill" className="h-full w-full object-contain" /></div>}
             <div className="text-white">
               <EventStatusBadge status={event.status} className="bg-white/90" />
               <h1 className="mt-1 text-xl font-bold sm:text-2xl">{event.name}</h1>
