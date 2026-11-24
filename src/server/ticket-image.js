@@ -13,7 +13,8 @@ import sharp from 'sharp';
 
 import { formatDate, timeRangeLabel } from '../lib/event-utils.js';
 import { qrPngBuffer } from '../lib/qr-png.js';
-import { absoluteUrl, escapeHtml } from './ticket-email-template.js';
+import { absoluteUrl } from './ticket-email-template.js';
+import { svgText } from './ticket-text.js';
 
 const CACHE_LIMIT = 30;
 const cache = new Map();
@@ -57,10 +58,8 @@ function wrapText(value, maxChars, maxLines = 2) {
   return kept;
 }
 
-function textBlock(lines, x, y, size, lineHeight, weight = '400', fill = '#0f172a', extra = '') {
-  return `<text x="${x}" y="${y}" font-family="Arial, Helvetica, sans-serif" font-size="${size}" font-weight="${weight}" fill="${fill}" ${extra}>${lines
-    .map((line, index) => `<tspan x="${x}" dy="${index === 0 ? 0 : lineHeight}">${escapeHtml(line)}</tspan>`)
-    .join('')}</text>`;
+function textBlock(lines, x, y, size, lineHeight, weight = '400', fill = '#0f172a', options = {}) {
+  return svgText({ lines, x, y, size, lineHeight, weight, fill, ...options });
 }
 
 function icon(kind, x, y) {
@@ -68,7 +67,7 @@ function icon(kind, x, y) {
 }
 
 function detailLabel(kind, label, y, x = PAD) {
-  return `${icon(kind, x, y)}${textBlock([label], x + 30, y, 21, 24, 'bold', '#94a3b8', 'letter-spacing="1.4"')}`;
+  return `${icon(kind, x, y)}${textBlock([label], x + 30, y, 21, 24, 'bold', '#94a3b8', { letterSpacing: 1.4 })}`;
 }
 
 // Local uploads are stored under public/uploads in development. Reading them
@@ -211,7 +210,7 @@ ${
     ? ''
     : `<g transform="translate(82,778) scale(2.1)" fill="none" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 0 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z" /><path d="M13 5v2M13 11v2M13 17v2" /></g>`
 }
-<text x="172" y="795" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="bold" letter-spacing="4" fill="#ffffff" fill-opacity="0.7">EVENT PASS</text>
+${svgText({ lines: ['EVENT PASS'], x: 172, y: 795, size: 21, weight: 'bold', fill: '#ffffff', letterSpacing: 4, opacity: 0.7 })}
 ${textBlock(wrapText(eventName, 30, 2), 172, 838, 38, 44, 'bold', '#ffffff')}
 
 <!-- Event details panel (matches TicketCard's grid) -->
@@ -229,22 +228,22 @@ ${address ? textBlock(wrapText(address, 34, 1), 630, 1032, 24, 28, '400', '#6474
 <circle cx="${WIDTH}" cy="${DIVIDER}" r="24" fill="#f1f5f9" />
 
 <!-- Guest + registration details -->
-<text x="${PAD}" y="1188" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="bold" letter-spacing="4" fill="#94a3b8">GUEST</text>
+${svgText({ lines: ['GUEST'], x: PAD, y: 1188, size: 21, weight: 'bold', fill: '#94a3b8', letterSpacing: 4 })}
 <circle cx="105" cy="1260" r="45" fill="${accent}" />
 ${
   avatar
     ? ''
-    : `<text x="105" y="1272" font-family="Arial, Helvetica, sans-serif" font-size="36" font-weight="bold" text-anchor="middle" fill="#ffffff">${escapeHtml(initial)}</text>`
+    : svgText({ lines: [initial], x: 105, y: 1272, size: 36, weight: 'bold', fill: '#ffffff', anchor: 'middle' })
 }
 ${textBlock(wrapText(guestName, 20, 1), 180, 1252, 30, 34, '600', '#0f172a')}
 ${guestEmail ? textBlock(wrapText(guestEmail, 24, 1), 180, 1288, 25, 28, '400', '#64748b') : ''}
 
-<text x="${PAD}" y="1370" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="bold" letter-spacing="4" fill="#94a3b8">REGISTRATION NO.</text>
-${textBlock([number], PAD, 1415, 34, 38, 'bold', '#0f172a', 'letter-spacing="2"')}
+${svgText({ lines: ['REGISTRATION NO.'], x: PAD, y: 1370, size: 21, weight: 'bold', fill: '#94a3b8', letterSpacing: 4 })}
+${textBlock([number], PAD, 1415, 34, 38, 'bold', '#0f172a', { letterSpacing: 2 })}
 
 ${
   fieldDetails.length
-    ? `<text x="${PAD}" y="1488" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="bold" letter-spacing="4" fill="#94a3b8">FIELD DETAILS</text>
+    ? `${svgText({ lines: ['FIELD DETAILS'], x: PAD, y: 1488, size: 21, weight: 'bold', fill: '#94a3b8', letterSpacing: 4 })}
 ${fieldDetails
   .map((field, index) => {
     const y = 1532 + index * 62;
@@ -258,7 +257,7 @@ ${textBlock(wrapText(field.value, 30, 1), 84, y + 24, 22, 26, '600', '#334155')}
 
 <!-- QR stub -->
 <rect x="726" y="1245" width="414" height="381" rx="28" fill="#ffffff" stroke="#e2e8f0" stroke-width="3" />
-<text x="933" y="1660" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="bold" letter-spacing="4" text-anchor="middle" fill="#94a3b8">PRESENT AT ENTRY</text>
+${svgText({ lines: ['PRESENT AT ENTRY'], x: 933, y: 1660, size: 21, weight: 'bold', fill: '#94a3b8', letterSpacing: 4, anchor: 'middle' })}
 </svg>`;
 
   const composites = [];
