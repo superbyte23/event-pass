@@ -9,11 +9,14 @@ export function parseQrValue(value) {
   return m ? m[1] : s;
 }
 
-export async function checkInByQrValue(value) {
+export async function checkInByQrValue(value, eventId) {
   const res = await fetch(`/api/admin/checkin`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ value: String(value || "").trim() }),
+    body: JSON.stringify({
+      value: String(value || "").trim(),
+      ...(eventId ? { event_id: eventId } : {}),
+    }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {

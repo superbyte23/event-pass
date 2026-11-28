@@ -32,7 +32,7 @@ export async function POST(request) {
       key: user?.id,
     });
     const token = extractToken(body?.value);
-    const result = await checkInRegistration(token, user);
+    const result = await checkInRegistration(token, user, body?.event_id);
     return NextResponse.json(result);
   } catch (error) {
     return errorResponse(error);

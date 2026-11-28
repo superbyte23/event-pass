@@ -17,7 +17,7 @@ const MAX_SCAN_QUEUE = 5;
 const SUCCESS_NEXT_DELAY_MS = 800;
 const SUCCESS_CLOSE_DELAY_MS = 1200;
 
-export default function AdminCheckIn() {
+export default function AdminCheckIn({ eventId = undefined, onCheckedIn = undefined }) {
   const scannerRef = useRef(null);
   const videoRef = useRef(null);
   const queueRef = useRef([]);
@@ -52,8 +52,9 @@ export default function AdminCheckIn() {
     let succeeded = false;
 
     try {
-      const data = await checkInByQrValue(token);
+      const data = await checkInByQrValue(token, eventId);
       setResult({ ...data, token });
+      onCheckedIn?.(data);
       setHistory((prev) =>
         [{ registration: data.registration, already: data.already, at: new Date() }, ...prev].slice(0, 8)
       );
@@ -79,7 +80,7 @@ export default function AdminCheckIn() {
         else setActiveScan(null);
       }, queueRef.current.length ? SUCCESS_NEXT_DELAY_MS : SUCCESS_CLOSE_DELAY_MS);
     }
-  }, []);
+  }, [eventId, onCheckedIn]);
 
   useEffect(() => {
     drainQueueRef.current = drainQueue;

@@ -377,18 +377,20 @@ function escapeRegExp(s) {
 // Admin-only check-in by the secure QR token embedded in a guest's ticket.
 // Idempotent: an already-checked-in registration is returned as-is with
 // `already: true` instead of erroring, so the scanner keeps working at the door.
-export async function checkInRegistration(token, user) {
+export async function checkInRegistration(token, user, eventId) {
   requireAdmin(user);
   const value = String(token || '').trim();
   if (!value) throw new ApiError(400, 'Please provide a ticket code.');
   await connectDb();
-  let reg = await Registration.findOne({ qr_token: value }).lean();
+  const eventFilter = eventId ? { event_id: eventId } : {};
+  let reg = await Registration.findOne({ qr_token: value, ...eventFilter }).lean();
   if (!reg) {
     // Fallback: the human-readable registration number (REG-YYYY-XXXXXX),
     // so staff can type it in when a camera isn't available.
     const upper = value.toUpperCase();
     reg = await Registration.findOne({
       registration_number: { $in: [value, upper] },
+      ...eventFilter,
     }).lean();
   }
   if (!reg) throw new ApiError(404, 'No registration matches this code.');

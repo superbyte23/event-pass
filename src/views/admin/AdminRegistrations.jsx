@@ -1,17 +1,24 @@
 import { db } from "@/api/db";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { RegStatusBadge } from "@/components/StatusBadge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fieldHasOptions, formatDateShort, formatDateTime } from "@/lib/event-utils";
 import TicketPreviewModal from "@/components/TicketPreviewModal";
 import BulkTicketEmailDialog from "@/components/BulkTicketEmailDialog";
+import AdminCheckIn from "@/views/admin/AdminCheckIn";
 import { ArrowLeft, Search, Eye, ChevronLeft, ChevronRight, Download, Upload, Loader2, ScanLine, Trash2, CheckCheck, XCircle, RefreshCw, X, FileText, Mail } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -185,6 +192,16 @@ export default function AdminRegistrations() {
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [importFile, setImportFile] = useState(null);
   const [bulkMailOpen, setBulkMailOpen] = useState(false);
+  const [scanOpen, setScanOpen] = useState(false);
+
+  const refreshRegs = useCallback(async () => {
+    try {
+      const refreshed = await db.entities.Registration.filter({ event_id: eventId });
+      setRegs(refreshed || []);
+    } catch {
+      // The scan succeeded; keep the current table if the refresh fails.
+    }
+  }, [eventId]);
 
   const openImportModal = () => {
     setImportProgress(null);
@@ -693,7 +710,7 @@ export default function AdminRegistrations() {
         <div className="flex items-center justify-between">
           <Button variant="ghost" size="sm" onClick={() => history.back()}><ArrowLeft className="w-4 h-4 mr-1.5" /> Back</Button>
           <div className="flex gap-1.5">
-            <Button size="sm" asChild aria-label="Scan QR"><Link to="/admin/checkin"><ScanLine className="w-3.5 h-3.5" /></Link></Button>
+            <Button size="sm" onClick={() => setScanOpen(true)} aria-label="Scan QR"><ScanLine className="w-3.5 h-3.5" /></Button>
             <Button size="sm" variant="outline" onClick={exportCsv} disabled={!rows || rows.length === 0} aria-label="Export CSV"><Download className="w-3.5 h-3.5" /></Button>
             {selectedIds.size > 0 && (
               <Button size="sm" variant="outline" onClick={() => setBulkMailOpen(true)} aria-label={`Email ${selectedIds.size} tickets`}>
@@ -716,7 +733,7 @@ export default function AdminRegistrations() {
       <div className="hidden md:flex items-center justify-between">
         <Button variant="ghost" size="sm" onClick={() => history.back()}><ArrowLeft className="w-4 h-4 mr-1.5" /> Back</Button>
         <div className="flex items-center gap-2">
-          <Button size="sm" asChild><Link to="/admin/checkin"><ScanLine className="w-3.5 h-3.5 mr-1" /> Scan QR</Link></Button>
+          <Button size="sm" onClick={() => setScanOpen(true)}><ScanLine className="w-3.5 h-3.5 mr-1" /> Scan QR</Button>
           <Button size="sm" variant="outline" onClick={openImportModal} disabled={importing || !event}>
             {importing ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Upload className="w-3.5 h-3.5 mr-1" />} Import CSV
           </Button>
@@ -1036,6 +1053,12 @@ export default function AdminRegistrations() {
           setSelectedIds(new Set());
         }}
       />
+      <Dialog open={scanOpen} onOpenChange={setScanOpen}>
+        <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+          <DialogHeader><DialogTitle>QR Check-in — {event?.name || "event"}</DialogTitle></DialogHeader>
+          {scanOpen && <AdminCheckIn eventId={eventId} onCheckedIn={refreshRegs} />}
+        </DialogContent>
+      </Dialog>
 
       {/* Import CSV Modal */}
       {importModalOpen && (
