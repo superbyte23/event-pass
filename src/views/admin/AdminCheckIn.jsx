@@ -5,10 +5,10 @@ import CheckInResult from "@/components/CheckInResult";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CHECKIN_METHOD_LABELS, checkInByQrValue, parseQrValue } from "@/lib/checkin";
+import { checkInByQrValue, parseQrValue } from "@/lib/checkin";
 import { decodeGrayscale, toGrayscale } from "@/lib/qr-decode";
 import { cn } from "@/lib/utils";
-import { CameraOff, Flashlight, FlashlightOff, History, Loader2, QrCode, ScanLine } from "lucide-react";
+import { CameraOff, Flashlight, FlashlightOff, Loader2, QrCode, ScanLine } from "lucide-react";
 
 const SCAN_INTERVAL_MS = 250;
 const CAPTURE_MAX_WIDTH = 800;
@@ -34,7 +34,6 @@ export default function AdminCheckIn({ eventId = undefined, onCheckedIn = undefi
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
-  const [history, setHistory] = useState([]);
   const [activeScan, setActiveScan] = useState(null);
 
   const drainQueue = useCallback(async () => {
@@ -56,9 +55,6 @@ export default function AdminCheckIn({ eventId = undefined, onCheckedIn = undefi
       const data = await checkInByQrValue(token, eventId, method);
       setResult({ ...data, token });
       try { onCheckedIn?.(data); } catch { /* a failed refresh must not undo a successful check-in */ }
-      setHistory((prev) =>
-        [{ registration: data.registration, already: data.already, at: new Date(), method }, ...prev].slice(0, 8)
-      );
       setActiveScan({ token, phase: "success", result: data, queued: queueRef.current.length });
       succeeded = true;
     } catch (e) {
@@ -369,27 +365,6 @@ export default function AdminCheckIn({ eventId = undefined, onCheckedIn = undefi
         <div className="space-y-4">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Result</h2>
           <CheckInResult result={result} error={error} busy={busy} />
-
-          {history.length > 0 && (
-            <div className="rounded-2xl border border-border bg-card p-4">
-              <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                <History className="h-4 w-4" /> Recent scans
-              </h3>
-              <ul className="mt-3 space-y-2">
-                {history.map((h, i) => (
-                  <li key={i} className="flex items-center gap-3 text-sm">
-                    <span className={cn("h-2 w-2 shrink-0 rounded-full", h.already ? "bg-amber-400" : "bg-emerald-500")} />
-                    <span className="flex-1 truncate">
-                      {h.registration?.guest_name || h.registration?.guest_email || h.registration?.registration_number || "Unknown"}
-                    </span>
-                    <span className="font-mono text-xs text-muted-foreground">{h.registration?.registration_number}</span>
-                    <span className="text-xs text-muted-foreground">{CHECKIN_METHOD_LABELS[h.method]}</span>
-                    <span className="text-xs text-muted-foreground">{h.already ? "already in" : "checked in"}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
         </div>
       </div>
 
