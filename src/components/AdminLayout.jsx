@@ -16,6 +16,8 @@ const LINKS = [
   { to: "/admin/settings", label: "Settings", icon: Settings },
 ];
 
+const COLLAPSED_LABEL = "pointer-events-none absolute left-full z-50 ml-2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-xs text-white opacity-0 shadow-md transition-opacity group-hover:opacity-100";
+
 function MobileMenu({ onNavigate, isActive }) {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -87,16 +89,18 @@ export default function AdminLayout() {
           </div>
           <nav className="flex-1 space-y-1 p-3">
             {LINKS.map((l) => (
-              <Link key={l.to} to={l.to} aria-label={sidebarCollapsed ? l.label : undefined} title={sidebarCollapsed ? l.label : undefined} className={cn("flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors", sidebarCollapsed && "justify-center px-2", isActive(l) ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
+              <Link key={l.to} to={l.to} aria-label={sidebarCollapsed ? l.label : undefined} className={cn("group relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors", sidebarCollapsed && "justify-center px-2", isActive(l) ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
                 <l.icon className="w-4 h-4 shrink-0" />
                 {!sidebarCollapsed && <span>{l.label}</span>}
+                {sidebarCollapsed && <span className={COLLAPSED_LABEL}>{l.label}</span>}
               </Link>
             ))}
           </nav>
           <div className="border-t border-border p-3">
-            <Link to="/" aria-label={sidebarCollapsed ? "Back to site" : undefined} title={sidebarCollapsed ? "Back to site" : undefined} className={cn("flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground", sidebarCollapsed && "justify-center px-2")}>
+            <Link to="/" aria-label={sidebarCollapsed ? "Back to site" : undefined} className={cn("group relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground", sidebarCollapsed && "justify-center px-2")}>
               <ArrowLeft className="w-4 h-4 shrink-0" />
               {!sidebarCollapsed && <span>Back to site</span>}
+              {sidebarCollapsed && <span className={COLLAPSED_LABEL}>Back to site</span>}
             </Link>
             <div className={cn("mt-3 flex items-center gap-2 text-xs text-muted-foreground", sidebarCollapsed ? "justify-center" : "px-3")}>
               <Avatar src={user?.image} name={user?.full_name || user?.email} className="h-6 w-6 shrink-0" fallbackClassName="text-[10px]" />
