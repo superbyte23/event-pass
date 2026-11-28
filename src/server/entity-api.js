@@ -381,6 +381,16 @@ function escapeRegExp(s) {
 // `already: true` instead of erroring, so the scanner keeps working at the door.
 const CHECKIN_METHODS = new Set(['qr_scan', 'manual_entry']);
 
+// The registration write already succeeded: never turn a real check-in into a
+// failure (or hide its history) because the append-only log insert failed.
+function logCheckInFailure(error) {
+  console.error('[check-in] log failed:', error?.message || error);
+}
+
+function notFound() {
+  return new ApiError(404, 'Registration not found.');
+}
+
 export async function checkInRegistration(token, user, eventId, method = 'qr_scan') {
   requireAdmin(user);
   if (!CHECKIN_METHODS.has(method)) throw new ApiError(400, 'Invalid check-in method.');
@@ -416,10 +426,11 @@ export async function checkInRegistration(token, user, eventId, method = 'qr_sca
       method,
       already: true,
       adminId: user.id,
-    });
+    }).catch(logCheckInFailure);
     return { registration: serialized, already: true };
   }
   const doc = await Registration.findByIdAndUpdate(reg._id, checkInUpdate, { new: true }).lean();
+  if (!doc) throw notFound();
   const checkedIn = serialize(doc);
   await recordCheckInLog({
     eventId: checkedIn.event_id,
@@ -427,7 +438,7 @@ export async function checkInRegistration(token, user, eventId, method = 'qr_sca
     method,
     already: false,
     adminId: user.id,
-  });
+  }).catch(logCheckInFailure);
   return { registration: checkedIn, already: false };
 }
 
@@ -583,7 +594,7 @@ export async function updateEntity(entity, id, data, user) {
         method: 'manual_button',
         already: false,
         adminId: user.id,
-      });
+      }).catch(logCheckInFailure);
     }
     if (entity === 'Event') await invalidateEventCache();
     return serialize(doc);
