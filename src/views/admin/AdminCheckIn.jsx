@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { checkInByQrValue, parseQrValue } from "@/lib/checkin";
 import { decodeGrayscale, toGrayscale } from "@/lib/qr-decode";
 import { cn } from "@/lib/utils";
-import { Camera, CameraOff, Flashlight, FlashlightOff, History, Loader2, QrCode, ScanLine } from "lucide-react";
+import { CameraOff, Flashlight, FlashlightOff, History, Loader2, QrCode, ScanLine } from "lucide-react";
 
 const SCAN_INTERVAL_MS = 250;
 const CAPTURE_MAX_WIDTH = 800;
@@ -295,26 +295,15 @@ export default function AdminCheckIn({ eventId = undefined, onCheckedIn = undefi
             Scan an attendee's ticket QR to check them in at the door.
           </p>
         </div>
-        {scanning ? (
-          <div className="flex gap-2">
-            {torchSupported && (
-              <Button
-                variant={torchOn ? "default" : "outline"}
-                onClick={toggleTorch}
-                aria-pressed={torchOn}
-                title="Toggle flashlight"
-              >
-                {torchOn ? <Flashlight className="mr-1.5 h-4 w-4" /> : <FlashlightOff className="mr-1.5 h-4 w-4" />}
-                Torch
-              </Button>
-            )}
-            <Button variant="outline" onClick={stopCamera}>
-              <CameraOff className="mr-1.5 h-4 w-4" /> Stop camera
-            </Button>
-          </div>
-        ) : (
-          <Button onClick={() => setScanning(true)}>
-            <Camera className="mr-1.5 h-4 w-4" /> Start camera
+        {torchSupported && scanning && (
+          <Button
+            variant={torchOn ? "default" : "outline"}
+            onClick={toggleTorch}
+            aria-pressed={torchOn}
+            title="Toggle flashlight"
+          >
+            {torchOn ? <Flashlight className="mr-1.5 h-4 w-4" /> : <FlashlightOff className="mr-1.5 h-4 w-4" />}
+            Torch
           </Button>
         )}
       </div>
@@ -330,15 +319,23 @@ export default function AdminCheckIn({ eventId = undefined, onCheckedIn = undefi
                   <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
                     <div className="h-44 w-44 rounded-2xl border-2 border-white/80 bg-white/10" />
                   </div>
-                  <p className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/50 px-3 py-1 text-xs text-white">
-                    Point at the QR code — camera stays on between scans
-                  </p>
+                  <button
+                    type="button"
+                    onClick={stopCamera}
+                    className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-3 py-1 text-xs text-white hover:bg-black/80"
+                  >
+                    <CameraOff className="mr-1 inline h-3.5 w-3.5" /> Stop camera
+                  </button>
                 </div>
               ) : (
-                <div className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-muted/40 text-center">
+                <button
+                  type="button"
+                  onClick={() => setScanning(true)}
+                  className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-muted/40 text-center hover:bg-muted/70"
+                >
                   <QrCode className="h-12 w-12 text-muted-foreground/40" />
-                  <p className="text-sm text-muted-foreground">Camera off — start it to scan a ticket QR.</p>
-                </div>
+                  <p className="text-sm text-muted-foreground">Camera off — click to start scanning a ticket QR.</p>
+                </button>
               )}
             </div>
             {cameraError && <p className="mt-3 text-sm text-rose-500">{cameraError}</p>}
