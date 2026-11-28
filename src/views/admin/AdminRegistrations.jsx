@@ -862,25 +862,24 @@ export default function AdminRegistrations() {
                       aria-label="Select all"
                     />
                   </th>
-                  <th className="px-4 py-3 font-medium">Registration</th>
-                  <th className="px-4 py-3 font-medium">Email</th>
+                  <th className="px-4 py-3 font-medium">Name</th>
                   {tableFields.map((f) => (
                     <th key={f.id} className="px-4 py-3 font-medium">{f.label}</th>
                   ))}
                   <th className="px-4 py-3 font-medium">Registered</th>
-                  <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 font-medium">Status / Check-in</th>
                   <th className="px-4 py-3 font-medium">Email</th>
-                  <th className="px-4 py-3 font-medium">Check-in</th>
                   <th className="px-4 py-3 font-medium text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {rows === null ? (
-                  <tr><td colSpan={8 + tableFields.length} className="px-4 py-10 text-center text-muted-foreground">Loading…</td></tr>
+                  <tr><td colSpan={6 + tableFields.length} className="px-4 py-10 text-center text-muted-foreground">Loading…</td></tr>
                 ) : pageRows.length === 0 ? (
-                  <tr><td colSpan={8 + tableFields.length} className="px-4 py-10 text-center text-muted-foreground">No registrations found.</td></tr>
+                  <tr><td colSpan={6 + tableFields.length} className="px-4 py-10 text-center text-muted-foreground">No registrations found.</td></tr>
                 ) : pageRows.map(({ reg, user }) => {
                   const displayEmail = user?.email || reg.guest_email;
+                  const displayName = user?.full_name || reg.guest_name;
                   return (
                     <tr key={reg.id} className="hover:bg-muted/30">
                       <td className="px-4 py-3">
@@ -890,9 +889,9 @@ export default function AdminRegistrations() {
                           aria-label={`Select registration ${reg.registration_number}`}
                         />
                       </td>
-                      <td className="px-4 py-3 font-mono text-xs">{reg.registration_number}</td>
                       <td className="px-4 py-3">
-                        <div className="font-medium">{displayEmail || "—"}</div>
+                        <div className="font-medium">{displayName || "—"}</div>
+                        <div className="text-xs text-muted-foreground">{displayEmail || "—"}</div>
                       </td>
                       {tableFields.map((f) => (
                         <td key={f.id} className="px-4 py-3">
@@ -905,9 +904,11 @@ export default function AdminRegistrations() {
                         </td>
                       ))}
                       <td className="px-4 py-3 text-muted-foreground">{reg.created_date ? formatDateShort(reg.created_date) : "—"}</td>
-                      <td className="px-4 py-3"><RegStatusBadge status={reg.status} /></td>
+                      <td className="px-4 py-3">
+                        <RegStatusBadge status={reg.status} />
+                        <div className="mt-1 text-xs text-muted-foreground">{reg.checked_in_at ? formatDateTime(reg.checked_in_at) : "Not checked in"}</div>
+                      </td>
                       <td className="px-4 py-3"><EmailStatusBadge status={reg.email_status} /></td>
-                      <td className="px-4 py-3 text-xs">{reg.checked_in_at ? formatDateTime(reg.checked_in_at) : <span className="text-muted-foreground">Not checked in</span>}</td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex justify-end gap-1.5">
                           <Button size="sm" variant="outline" onClick={() => setTicketReg(reg)}><Eye className="w-3.5 h-3.5" /></Button>
