@@ -18,8 +18,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { fieldHasOptions, formatDateShort, formatDateTime } from "@/lib/event-utils";
 import TicketPreviewModal from "@/components/TicketPreviewModal";
 import BulkTicketEmailDialog from "@/components/BulkTicketEmailDialog";
+import CheckInActivityDialog from "@/components/CheckInActivityDialog";
 import AdminCheckIn from "@/views/admin/AdminCheckIn";
-import { ArrowLeft, Search, Eye, ChevronLeft, ChevronRight, Download, Upload, Loader2, ScanLine, Trash2, CheckCheck, XCircle, RefreshCw, X, FileText, Mail } from "lucide-react";
+import { ArrowLeft, Search, Eye, ChevronLeft, ChevronRight, Download, Upload, Loader2, ScanLine, Activity, Trash2, CheckCheck, XCircle, RefreshCw, X, FileText, Mail } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useAuth } from "@/lib/AuthContext";
@@ -193,6 +194,7 @@ export default function AdminRegistrations() {
   const [importFile, setImportFile] = useState(null);
   const [bulkMailOpen, setBulkMailOpen] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
+  const [activityOpen, setActivityOpen] = useState(false);
 
   const refreshRegs = useCallback(async () => {
     try {
@@ -711,6 +713,7 @@ export default function AdminRegistrations() {
           <Button variant="ghost" size="sm" onClick={() => history.back()}><ArrowLeft className="w-4 h-4 mr-1.5" /> Back</Button>
           <div className="flex gap-1.5">
             <Button size="sm" onClick={() => setScanOpen(true)} aria-label="Scan QR"><ScanLine className="w-3.5 h-3.5" /></Button>
+            <Button size="sm" variant="outline" onClick={() => setActivityOpen(true)} aria-label="Activity"><Activity className="w-3.5 h-3.5" /></Button>
             <Button size="sm" variant="outline" onClick={exportCsv} disabled={!rows || rows.length === 0} aria-label="Export CSV"><Download className="w-3.5 h-3.5" /></Button>
             {selectedIds.size > 0 && (
               <Button size="sm" variant="outline" onClick={() => setBulkMailOpen(true)} aria-label={`Email ${selectedIds.size} tickets`}>
@@ -737,6 +740,7 @@ export default function AdminRegistrations() {
             {importing ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Upload className="w-3.5 h-3.5 mr-1" />} Import CSV
           </Button>
           <Button size="sm" variant="outline" onClick={exportCsv} disabled={!rows || rows.length === 0}><Download className="w-3.5 h-3.5 mr-1" /> Export CSV</Button>
+          <Button size="sm" variant="outline" onClick={() => setActivityOpen(true)}><Activity className="w-3.5 h-3.5 mr-1" /> Activity</Button>
           {selectedIds.size > 0 && (
             <Button size="sm" variant="outline" onClick={() => setBulkMailOpen(true)}>
               <Mail className="w-3.5 h-3.5 mr-1" /> Email {selectedIds.size}
@@ -1070,6 +1074,13 @@ export default function AdminRegistrations() {
           {scanOpen && <AdminCheckIn eventId={eventId} onCheckedIn={refreshRegs} />}
         </DialogContent>
       </Dialog>
+      <CheckInActivityDialog
+        open={activityOpen}
+        onOpenChange={setActivityOpen}
+        eventId={eventId}
+        eventName={event?.name}
+        regs={regs || []}
+      />
 
       {/* Import CSV Modal */}
       {importModalOpen && (
