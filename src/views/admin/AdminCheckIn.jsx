@@ -314,10 +314,10 @@ export default function AdminCheckIn({ eventId = undefined, onCheckedIn = undefi
             <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Scanner</h2>
             <div className="mt-3">
               {scanning ? (
-                <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-black">
+                <div className="relative aspect-[16/9] w-full overflow-hidden rounded-xl bg-black">
                   <video ref={videoRef} muted playsInline className="h-full w-full object-cover" />
                   <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                    <div className="h-44 w-44 rounded-2xl border-2 border-white/80 bg-white/10" />
+                    <div className="h-32 w-32 rounded-2xl border-2 border-white/80 bg-white/10" />
                   </div>
                   <button
                     type="button"
@@ -331,7 +331,7 @@ export default function AdminCheckIn({ eventId = undefined, onCheckedIn = undefi
                 <button
                   type="button"
                   onClick={() => setScanning(true)}
-                  className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-muted/40 text-center hover:bg-muted/70"
+                  className="flex aspect-[16/9] w-full flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-muted/40 text-center hover:bg-muted/70"
                 >
                   <QrCode className="h-12 w-12 text-muted-foreground/40" />
                   <p className="text-sm text-muted-foreground">Camera off — click to start scanning a ticket QR.</p>
