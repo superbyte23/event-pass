@@ -751,6 +751,11 @@ export default function AdminRegistrations() {
         </div>
       </div>
 
+      <div className="md:grid md:grid-cols-10 md:items-start md:gap-6">
+        <div className="hidden md:col-span-3 md:block">
+          <AdminCheckIn eventId={eventId} onCheckedIn={refreshRegs} compact />
+        </div>
+        <div className="md:col-span-7 space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Registrations</h1>
         <p className="text-sm text-muted-foreground">{event?.name} · {regs?.length || 0} total</p>
@@ -840,11 +845,6 @@ export default function AdminRegistrations() {
         </Select>
         </div>
 
-      <div className="md:grid md:grid-cols-5 md:items-start md:gap-6">
-        <div className="hidden md:col-span-2 md:block">
-          <AdminCheckIn eventId={eventId} onCheckedIn={refreshRegs} compact />
-        </div>
-        <div className="md:col-span-3">
       <Card className="overflow-hidden">
 
         {/* Responsive Table - Table on desktop, cards on mobile */}
