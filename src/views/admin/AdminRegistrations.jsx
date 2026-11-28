@@ -733,7 +733,6 @@ export default function AdminRegistrations() {
       <div className="hidden md:flex items-center justify-between">
         <Button variant="ghost" size="sm" onClick={() => history.back()}><ArrowLeft className="w-4 h-4 mr-1.5" /> Back</Button>
         <div className="flex items-center gap-2">
-          <Button size="sm" onClick={() => setScanOpen(true)}><ScanLine className="w-3.5 h-3.5 mr-1" /> Scan QR</Button>
           <Button size="sm" variant="outline" onClick={openImportModal} disabled={importing || !event}>
             {importing ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Upload className="w-3.5 h-3.5 mr-1" />} Import CSV
           </Button>
@@ -841,6 +840,11 @@ export default function AdminRegistrations() {
         </Select>
         </div>
 
+      <div className="md:grid md:grid-cols-5 md:items-start md:gap-6">
+        <div className="hidden md:col-span-2 md:block">
+          <AdminCheckIn eventId={eventId} onCheckedIn={refreshRegs} compact />
+        </div>
+        <div className="md:col-span-3">
       <Card className="overflow-hidden">
 
         {/* Responsive Table - Table on desktop, cards on mobile */}
@@ -1008,6 +1012,8 @@ export default function AdminRegistrations() {
           </div>
         )}
       </Card>
+        </div>
+      </div>
       </div>
       <TicketPreviewModal
         reg={ticketReg}
