@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/AuthContext";
 import Avatar from "@/components/Avatar";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { LayoutDashboard, CalendarDays, Settings, ArrowLeft, Ticket, ScanLine, Menu, Users, Mail } from "lucide-react";
+import { LayoutDashboard, CalendarDays, Settings, ArrowLeft, Ticket, ScanLine, Menu, Users, Mail, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
@@ -57,30 +57,44 @@ export default function AdminLayout() {
   const { user } = useAuth();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const isActive = (link) => (link.exact ? location.pathname === link.to : location.pathname.startsWith(link.to));
 
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="flex">
-        <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-border bg-white md:flex">
-          <Link to="/admin" className="flex items-center gap-2 px-5 h-16 border-b border-border">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground"><Ticket className="w-4 h-4" /></span>
-            <span className="font-semibold">Admin</span>
+        <aside className={cn("sticky top-0 hidden h-screen shrink-0 flex-col border-r border-border bg-white md:flex", sidebarCollapsed ? "w-16" : "w-60")}>
+          <Link to="/admin" className={cn("flex h-16 items-center border-b border-border", sidebarCollapsed ? "justify-center px-2" : "gap-2 px-5")}>
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground"><Ticket className="w-4 h-4" /></span>
+            {!sidebarCollapsed && <span className="font-semibold">Admin</span>}
           </Link>
           <nav className="flex-1 space-y-1 p-3">
+            <button
+              type="button"
+              onClick={() => setSidebarCollapsed((v) => !v)}
+              aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              aria-expanded={!sidebarCollapsed}
+              title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              className={cn("flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground", sidebarCollapsed && "justify-center px-2")}
+            >
+              {sidebarCollapsed ? <PanelLeftOpen className="w-4 h-4 shrink-0" /> : <PanelLeftClose className="w-4 h-4 shrink-0" />}
+              {!sidebarCollapsed && <span>Collapse</span>}
+            </button>
             {LINKS.map((l) => (
-              <Link key={l.to} to={l.to} className={cn("flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors", isActive(l) ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
-                <l.icon className="w-4 h-4" /> {l.label}
+              <Link key={l.to} to={l.to} aria-label={sidebarCollapsed ? l.label : undefined} title={sidebarCollapsed ? l.label : undefined} className={cn("flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors", sidebarCollapsed && "justify-center px-2", isActive(l) ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
+                <l.icon className="w-4 h-4 shrink-0" />
+                {!sidebarCollapsed && <span>{l.label}</span>}
               </Link>
             ))}
           </nav>
           <div className="border-t border-border p-3">
-            <Link to="/" className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground">
-              <ArrowLeft className="w-4 h-4" /> Back to site
+            <Link to="/" aria-label={sidebarCollapsed ? "Back to site" : undefined} title={sidebarCollapsed ? "Back to site" : undefined} className={cn("flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground", sidebarCollapsed && "justify-center px-2")}>
+              <ArrowLeft className="w-4 h-4 shrink-0" />
+              {!sidebarCollapsed && <span>Back to site</span>}
             </Link>
-            <div className="mt-3 flex items-center gap-2 px-3 text-xs text-muted-foreground">
-              <Avatar src={user?.image} name={user?.full_name || user?.email} className="h-6 w-6" fallbackClassName="text-[10px]" />
-              <span className="truncate">{user?.full_name || user?.email}</span>
+            <div className={cn("mt-3 flex items-center gap-2 text-xs text-muted-foreground", sidebarCollapsed ? "justify-center" : "px-3")}>
+              <Avatar src={user?.image} name={user?.full_name || user?.email} className="h-6 w-6 shrink-0" fallbackClassName="text-[10px]" />
+              {!sidebarCollapsed && <span className="truncate">{user?.full_name || user?.email}</span>}
             </div>
           </div>
         </aside>
