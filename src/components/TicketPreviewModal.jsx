@@ -22,7 +22,7 @@ export default function TicketPreviewModal({ reg, event, guest, onClose, footer 
         role="dialog"
         aria-modal="true"
         aria-label="Ticket preview"
-        className="w-full max-w-2xl overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-black/10"
+        className="w-full max-w-2xl overflow-hidden rounded-lg bg-white shadow-2xl ring-1 ring-black/10"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="pretty-scrollbar max-h-[92vh] overflow-y-auto p-4">
