@@ -75,6 +75,7 @@ const registrationSchema = new Schema(
     },
     checked_in_at: { type: Date, default: null },
     checked_in_by: { type: String, default: null },
+    check_in_method: { type: String, default: null },
     responses: { type: Schema.Types.Mixed, default: () => ({}) },
     // Ticket delivery state. Persisted so the registrations list can show
     // whether each guest has already been emailed.
@@ -182,6 +183,24 @@ const mailBatchSchema = new Schema(
 
 mailBatchSchema.index({ event_id: 1, admin_id: 1, status: 1 });
 
+// Append-only check-in history. Written only by the admin check-in paths;
+// restoring a registration never removes these rows.
+const checkInLogSchema = new Schema(
+  {
+    _id: id(),
+    event_id: { type: String, required: true, index: true },
+    registration_id: { type: String, required: true, index: true },
+    registration_number: { type: String, default: null },
+    guest_name: { type: String, default: null },
+    guest_email: { type: String, default: null },
+    method: { type: String, required: true },
+    already: { type: Boolean, default: false },
+    admin_id: { type: String, default: null },
+    created_date: { ...createdDate },
+  },
+  options,
+);
+
 // Reuse compiled models across Next.js dev hot-reloads.
 function register(name, schema) {
   return mongoose.models[name] || mongoose.model(name, schema);
@@ -209,9 +228,10 @@ export const Setting = register('Setting', settingSchema);
 export const MailAccount = register('MailAccount', mailAccountSchema);
 export const MailLog = register('MailLog', mailLogSchema);
 export const MailBatch = register('MailBatch', mailBatchSchema);
+export const CheckInLog = register('CheckInLog', checkInLogSchema);
 
-// MailAccount/MailLog/MailBatch are intentionally not in MODELS — they have dedicated
-// admin-only APIs and must not be reachable through the generic entity routes.
+// MailAccount/MailLog/MailBatch/CheckInLog are intentionally not in MODELS — they
+// have dedicated admin-only APIs and must not be reachable through generic routes.
 export const MODELS = { Event, Registration, Setting, User };
 
 // Mongo documents expose `_id`; the app (Base44 contract) reads `id`, so flatten
