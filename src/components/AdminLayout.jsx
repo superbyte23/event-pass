@@ -64,22 +64,26 @@ export default function AdminLayout() {
     <div className="min-h-screen bg-slate-50">
       <div className="flex">
         <aside className={cn("sticky top-0 hidden h-screen shrink-0 flex-col border-r border-border bg-white md:flex", sidebarCollapsed ? "w-16" : "w-60")}>
-          <Link to="/admin" className={cn("flex h-16 items-center border-b border-border", sidebarCollapsed ? "justify-center px-2" : "gap-2 px-5")}>
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground"><Ticket className="w-4 h-4" /></span>
-            {!sidebarCollapsed && <span className="font-semibold">Admin</span>}
-          </Link>
-          <nav className="flex-1 space-y-1 p-3">
+          <div className={cn("group relative flex h-16 items-center border-b border-border", sidebarCollapsed ? "justify-center px-2" : "gap-2 px-5")}>
+            <Link to="/admin" aria-label="Admin" className="flex min-w-0 items-center gap-2">
+              <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground", sidebarCollapsed && "group-hover:opacity-0")}><Ticket className="w-4 h-4" /></span>
+              {!sidebarCollapsed && <span className="font-semibold">Admin</span>}
+            </Link>
             <button
               type="button"
               onClick={() => setSidebarCollapsed((v) => !v)}
               aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
               aria-expanded={!sidebarCollapsed}
               title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-              className={cn("flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground", sidebarCollapsed && "justify-center px-2")}
+              className={cn(
+                "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground",
+                sidebarCollapsed && "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto"
+              )}
             >
-              {sidebarCollapsed ? <PanelLeftOpen className="w-4 h-4 shrink-0" /> : <PanelLeftClose className="w-4 h-4 shrink-0" />}
-              {!sidebarCollapsed && <span>Collapse</span>}
+              {sidebarCollapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
             </button>
+          </div>
+          <nav className="flex-1 space-y-1 p-3">
             {LINKS.map((l) => (
               <Link key={l.to} to={l.to} aria-label={sidebarCollapsed ? l.label : undefined} title={sidebarCollapsed ? l.label : undefined} className={cn("flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors", sidebarCollapsed && "justify-center px-2", isActive(l) ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
                 <l.icon className="w-4 h-4 shrink-0" />
