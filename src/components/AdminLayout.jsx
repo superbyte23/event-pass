@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import Avatar from "@/components/Avatar";
@@ -57,7 +57,8 @@ export default function AdminLayout() {
   const { user } = useAuth();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => typeof window !== "undefined" && window.localStorage.getItem("adminSidebarCollapsed") === "true");
+  useEffect(() => { window.localStorage.setItem("adminSidebarCollapsed", String(sidebarCollapsed)); }, [sidebarCollapsed]);
   const isActive = (link) => (link.exact ? location.pathname === link.to : location.pathname.startsWith(link.to));
 
   return (
@@ -77,6 +78,7 @@ export default function AdminLayout() {
               title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
               className={cn(
                 "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground",
+                !sidebarCollapsed && "ml-auto",
                 sidebarCollapsed && "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto"
               )}
             >
