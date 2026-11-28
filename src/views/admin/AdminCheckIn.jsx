@@ -17,7 +17,7 @@ const MAX_SCAN_QUEUE = 5;
 const SUCCESS_NEXT_DELAY_MS = 800;
 const SUCCESS_CLOSE_DELAY_MS = 1200;
 
-export default function AdminCheckIn({ eventId = undefined, onCheckedIn = undefined }) {
+export default function AdminCheckIn({ eventId = undefined, onCheckedIn = undefined, compact = false }) {
   const scannerRef = useRef(null);
   const videoRef = useRef(null);
   const queueRef = useRef([]);
@@ -319,7 +319,7 @@ export default function AdminCheckIn({ eventId = undefined, onCheckedIn = undefi
         )}
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className={cn("grid gap-6", !compact && "md:grid-cols-2")}>
         <div className="space-y-4">
           <div className="rounded-2xl border border-border bg-card p-4">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Scanner</h2>
