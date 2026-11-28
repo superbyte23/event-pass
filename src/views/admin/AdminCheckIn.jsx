@@ -54,7 +54,7 @@ export default function AdminCheckIn({ eventId = undefined, onCheckedIn = undefi
     try {
       const data = await checkInByQrValue(token, eventId);
       setResult({ ...data, token });
-      onCheckedIn?.(data);
+      try { onCheckedIn?.(data); } catch { /* a failed refresh must not undo a successful check-in */ }
       setHistory((prev) =>
         [{ registration: data.registration, already: data.already, at: new Date() }, ...prev].slice(0, 8)
       );
