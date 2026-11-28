@@ -20,7 +20,7 @@ import TicketPreviewModal from "@/components/TicketPreviewModal";
 import BulkTicketEmailDialog from "@/components/BulkTicketEmailDialog";
 import CheckInActivityDialog from "@/components/CheckInActivityDialog";
 import AdminCheckIn from "@/views/admin/AdminCheckIn";
-import { ArrowLeft, Search, Eye, ChevronLeft, ChevronRight, Download, Upload, Loader2, ScanLine, Activity, Trash2, CheckCheck, XCircle, RefreshCw, X, FileText, Mail } from "lucide-react";
+import { ArrowLeft, Search, Eye, ChevronLeft, ChevronRight, Download, Upload, Loader2, ScanLine, Activity, Trash2, CheckCheck, XCircle, RefreshCw, X, FileText, Mail, Ticket as TicketIcon, Undo2, ExternalLink } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useAuth } from "@/lib/AuthContext";
@@ -313,6 +313,25 @@ export default function AdminRegistrations() {
       toast({ title: "Registration cancelled" });
     } catch (err) {
       toast({ variant: "destructive", title: "Cancel failed", description: err?.message });
+    } finally {
+      setModalAction(null);
+    }
+  };
+
+  const handleUndoCheckIn = async (regId) => {
+    setModalAction('checkin');
+    try {
+      const res = await db.entities.Registration.update(regId, {
+        status: 'confirmed',
+        checked_in_at: null,
+        checked_in_by: null,
+      });
+      const refreshed = await db.entities.Registration.filter({ event_id: eventId });
+      setRegs(refreshed || []);
+      setTicketReg(res);
+      toast({ title: "Check-in undone" });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Undo check-in failed", description: err?.message });
     } finally {
       setModalAction(null);
     }
@@ -1031,22 +1050,29 @@ export default function AdminRegistrations() {
         onClose={() => setTicketReg(null)}
         footer={ticketReg && (
           <div className="flex flex-wrap gap-2 rounded-2xl bg-white p-4 shadow-lg ring-1 ring-black/5">
-            <Button asChild variant="outline" className="flex-1 min-w-[120px]"><Link to={`/admin/registrations/${ticketReg.id}`} onClick={() => setTicketReg(null)}><Eye className="w-3.5 h-3.5 mr-1" /> Details</Link></Button>
+            <Button asChild variant="outline" className="min-w-[120px]"><Link to={`/tickets/${ticketReg.id}`}><TicketIcon className="w-3.5 h-3.5 mr-1" /> View ticket</Link></Button>
+            {event && <Button asChild variant="outline" className="min-w-[120px]"><Link to={`/admin/events/${event.id}/registrations`} target="_blank"><ExternalLink className="w-3.5 h-3.5 mr-1" /> Event registrations</Link></Button>}
 
-            {ticketReg.status === 'confirmed' && (
-              <Button className="flex-1 min-w-[120px]" onClick={() => handleCheckIn(ticketReg.id)} disabled={modalAction === 'checkin'}>
+            {ticketReg.status !== 'checked_in' && ticketReg.status !== 'cancelled' && (
+              <Button className="min-w-[120px]" onClick={() => handleCheckIn(ticketReg.id)} disabled={modalAction === 'checkin'}>
                 {modalAction === 'checkin' ? <RefreshCw className="w-3.5 h-3.5 mr-1 animate-spin" /> : <CheckCheck className="w-3.5 h-3.5 mr-1" />} Check In
               </Button>
             )}
 
-            {ticketReg.status === 'confirmed' && (
-              <Button variant="destructive" className="flex-1 min-w-[120px]" onClick={() => handleCancel(ticketReg.id)} disabled={modalAction === 'cancel'}>
+            {ticketReg.status === 'checked_in' && (
+              <Button variant="outline" className="min-w-[120px]" onClick={() => handleUndoCheckIn(ticketReg.id)} disabled={modalAction === 'checkin'}>
+                {modalAction === 'checkin' ? <RefreshCw className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Undo2 className="w-3.5 h-3.5 mr-1" />} Undo check-in
+              </Button>
+            )}
+
+            {ticketReg.status !== 'cancelled' && ticketReg.status !== 'checked_in' && (
+              <Button variant="destructive" className="min-w-[120px]" onClick={() => handleCancel(ticketReg.id)} disabled={modalAction === 'cancel'}>
                 {modalAction === 'cancel' ? <RefreshCw className="w-3.5 h-3.5 mr-1 animate-spin" /> : <XCircle className="w-3.5 h-3.5 mr-1" />} Cancel
               </Button>
             )}
 
             {ticketReg.status === 'cancelled' && (
-              <Button variant="outline" className="flex-1 min-w-[120px]" onClick={() => handleUndoCancel(ticketReg.id)} disabled={modalAction === 'cancel'}>
+              <Button variant="outline" className="min-w-[120px]" onClick={() => handleUndoCancel(ticketReg.id)} disabled={modalAction === 'cancel'}>
                 {modalAction === 'cancel' ? <RefreshCw className="w-3.5 h-3.5 mr-1 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 mr-1" />} Restore
               </Button>
             )}
