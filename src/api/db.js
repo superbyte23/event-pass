@@ -124,6 +124,11 @@ export const db = {
     )
   ),
 
+  checkinLogs: {
+    list: async (eventId) =>
+      (await request(`${API_BASE}/admin/checkin${query({ event_id: eventId })}`))?.logs || [],
+  },
+
   tickets: {
     downloadImage: async (ticketId, format = 'webp') => {
       const response = await fetch(

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { checkInRegistration } from '@/server/entity-api';
-import { getSessionUser } from '@/server/session';
+import { listCheckInLogs } from '@/server/checkin-log';
+import { getSessionUser, requireAdmin } from '@/server/session';
 import { errorResponse } from '@/server/http';
 import { enforceRateLimit } from '@/server/rate-limit';
 
@@ -21,6 +22,17 @@ function extractToken(value) {
   return m ? m[1] : s;
 }
 
+export async function GET(request) {
+  try {
+    requireAdmin(await getSessionUser(request));
+    const eventId = new URL(request.url).searchParams.get('event_id');
+    if (!eventId) return NextResponse.json({ logs: [] });
+    return NextResponse.json({ logs: await listCheckInLogs(eventId) });
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
+
 export async function POST(request) {
   try {
     const body = await request.json().catch(() => ({}));
@@ -32,7 +44,7 @@ export async function POST(request) {
       key: user?.id,
     });
     const token = extractToken(body?.value);
-    const result = await checkInRegistration(token, user, body?.event_id);
+    const result = await checkInRegistration(token, user, body?.event_id, body?.method);
     return NextResponse.json(result);
   } catch (error) {
     return errorResponse(error);

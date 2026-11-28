@@ -1,5 +1,11 @@
 // Client helpers for admin QR check-in.
 
+export const CHECKIN_METHOD_LABELS = {
+  qr_scan: "QR scan",
+  manual_entry: "Manual entry",
+  manual_button: "Check-in button",
+};
+
 // Pull the token out of whatever the scanner returns (bare token, `/checkin/<t>`
 // path, or the full origin URL encoded in the ticket QR).
 export function parseQrValue(value) {
@@ -9,13 +15,14 @@ export function parseQrValue(value) {
   return m ? m[1] : s;
 }
 
-export async function checkInByQrValue(value, eventId) {
+export async function checkInByQrValue(value, eventId, method = 'qr_scan') {
   const res = await fetch(`/api/admin/checkin`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       value: String(value || "").trim(),
       ...(eventId ? { event_id: eventId } : {}),
+      method,
     }),
   });
   const data = await res.json().catch(() => ({}));
