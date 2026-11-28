@@ -25,3 +25,13 @@ Start with `README.md` for setup, environment variables, and architecture.
 - Run `npm run lint` and `npm run typecheck` before finishing code changes; `npm run build` must stay green and must not require env vars.
 - Baseline status (2026-11-24): `npm run lint`, `npm run typecheck`, and `npm run build` all pass with no warnings. ESLint uses Next 16's native flat config; Next-only Link/Image rules are off because the app uses a react-router SPA shell and a custom image wrapper, and the React Compiler-era hooks rules are off because the app still uses effect-based data loading. UI `React.forwardRef` wrappers carry a JSDoc render-function type, optional component props have defaults, and client errors that add `status`/`data` use an `ApiError` typedef; keep those conventions when editing shared components.
 - Dependency notes: `@vercel/blob` is pinned to 2.4.0 (later versions add an OIDC dependency with open advisories); the app only uses `put()` with `BLOB_READ_WRITE_TOKEN`. `nodemailer` stays on 7.x because NextAuth 4's optional peer caps it at `^7.0.7`; upgrading breaks plain `npm install`. Revisit both when upstream ships fixed versions.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+## This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
