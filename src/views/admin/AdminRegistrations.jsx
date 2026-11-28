@@ -350,7 +350,7 @@ export default function AdminRegistrations() {
 
   const formFields = useMemo(() => event?.form_fields || [], [event]);
   // Email is already its own column, so don't repeat email-type fields.
-  const tableFields = formFields.filter((f) => f.type !== "email");
+  const tableFields = formFields.filter((f) => f.type !== "email" && f.label.toLowerCase() !== "name");
 
   const rows = useMemo(() => {
     if (!regs) return null;
@@ -862,6 +862,7 @@ export default function AdminRegistrations() {
                       aria-label="Select all"
                     />
                   </th>
+                  <th className="px-4 py-3 font-medium">Registration</th>
                   <th className="px-4 py-3 font-medium">Name</th>
                   {tableFields.map((f) => (
                     <th key={f.id} className="px-4 py-3 font-medium">{f.label}</th>
@@ -874,9 +875,9 @@ export default function AdminRegistrations() {
               </thead>
               <tbody className="divide-y divide-border">
                 {rows === null ? (
-                  <tr><td colSpan={6 + tableFields.length} className="px-4 py-10 text-center text-muted-foreground">Loading…</td></tr>
+                  <tr><td colSpan={7 + tableFields.length} className="px-4 py-10 text-center text-muted-foreground">Loading…</td></tr>
                 ) : pageRows.length === 0 ? (
-                  <tr><td colSpan={6 + tableFields.length} className="px-4 py-10 text-center text-muted-foreground">No registrations found.</td></tr>
+                  <tr><td colSpan={7 + tableFields.length} className="px-4 py-10 text-center text-muted-foreground">No registrations found.</td></tr>
                 ) : pageRows.map(({ reg, user }) => {
                   const displayEmail = user?.email || reg.guest_email;
                   const displayName = user?.full_name || reg.guest_name;
@@ -889,6 +890,7 @@ export default function AdminRegistrations() {
                           aria-label={`Select registration ${reg.registration_number}`}
                         />
                       </td>
+                      <td className="px-4 py-3 font-mono text-xs">{reg.registration_number}</td>
                       <td className="px-4 py-3">
                         <div className="font-medium">{displayName || "—"}</div>
                         <div className="text-xs text-muted-foreground">{displayEmail || "—"}</div>
@@ -932,6 +934,7 @@ export default function AdminRegistrations() {
             <div className="divide-y divide-border">
               {pageRows.map(({ reg, user }) => {
                 const displayEmail = user?.email || reg.guest_email;
+                const displayName = user?.full_name || reg.guest_name;
                 const isSelected = selectedIds.has(reg.id);
                 return (
                   <div key={reg.id} className={`p-4 ${isSelected ? "bg-primary/5" : "hover:bg-muted/30"}`}>
@@ -947,7 +950,8 @@ export default function AdminRegistrations() {
                           <RegStatusBadge status={reg.status} />
                           <EmailStatusBadge status={reg.email_status} />
                         </div>
-                        <div className="text-sm truncate text-foreground">{displayEmail || "—"}</div>
+                        <div className="text-sm font-medium truncate">{displayName || "—"}</div>
+                        <div className="text-xs truncate text-muted-foreground">{displayEmail || "—"}</div>
                         <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
                           <span>{reg.created_date ? formatDateShort(reg.created_date) : "—"}</span>
                           {tableFields.length > 0 && (
