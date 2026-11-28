@@ -22,7 +22,7 @@ export default function TicketPreviewModal({ reg, event, guest, onClose, footer 
         role="dialog"
         aria-modal="true"
         aria-label="Ticket preview"
-        className="max-h-[92vh] w-full max-w-2xl overflow-y-auto"
+        className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-slate-900 p-4 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-center justify-between gap-3 text-white">
