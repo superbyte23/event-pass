@@ -5,7 +5,7 @@ import CheckInResult from "@/components/CheckInResult";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { checkInByQrValue, parseQrValue } from "@/lib/checkin";
+import { CHECKIN_METHOD_LABELS, checkInByQrValue, parseQrValue } from "@/lib/checkin";
 import { decodeGrayscale, toGrayscale } from "@/lib/qr-decode";
 import { cn } from "@/lib/utils";
 import { CameraOff, Flashlight, FlashlightOff, History, Loader2, QrCode, ScanLine } from "lucide-react";
@@ -39,8 +39,9 @@ export default function AdminCheckIn({ eventId = undefined, onCheckedIn = undefi
 
   const drainQueue = useCallback(async () => {
     if (drainingRef.current || activeRef.current || closeTimerRef.current) return;
-    const token = queueRef.current.shift();
-    if (!token) return;
+    const item = queueRef.current.shift();
+    if (!item) return;
+    const { token, method } = item;
 
     drainingRef.current = true;
     activeRef.current = token;
@@ -52,11 +53,11 @@ export default function AdminCheckIn({ eventId = undefined, onCheckedIn = undefi
     let succeeded = false;
 
     try {
-      const data = await checkInByQrValue(token, eventId);
+      const data = await checkInByQrValue(token, eventId, method);
       setResult({ ...data, token });
       try { onCheckedIn?.(data); } catch { /* a failed refresh must not undo a successful check-in */ }
       setHistory((prev) =>
-        [{ registration: data.registration, already: data.already, at: new Date() }, ...prev].slice(0, 8)
+        [{ registration: data.registration, already: data.already, at: new Date(), method }, ...prev].slice(0, 8)
       );
       setActiveScan({ token, phase: "success", result: data, queued: queueRef.current.length });
       succeeded = true;
@@ -90,7 +91,7 @@ export default function AdminCheckIn({ eventId = undefined, onCheckedIn = undefi
     };
   }, [drainQueue]);
 
-  const enqueueCheckIn = useCallback((value) => {
+  const enqueueCheckIn = useCallback((value, method) => {
     const token = parseQrValue(value);
     if (!token) {
       const message = "That doesn't look like a valid ticket code.";
@@ -99,7 +100,7 @@ export default function AdminCheckIn({ eventId = undefined, onCheckedIn = undefi
       return;
     }
 
-    if (activeRef.current === token || queueRef.current.includes(token)) return;
+    if (activeRef.current === token || queueRef.current.some((item) => item.token === token)) return;
 
     const ctx = scannerRef.current;
     if (ctx?.seen) {
@@ -125,7 +126,7 @@ export default function AdminCheckIn({ eventId = undefined, onCheckedIn = undefi
       return;
     }
 
-    queueRef.current.push(token);
+    queueRef.current.push({ token, method });
     setActiveScan((prev) =>
       prev ? { ...prev, queued: queueRef.current.length, notice: undefined } : prev
     );
@@ -241,7 +242,7 @@ export default function AdminCheckIn({ eventId = undefined, onCheckedIn = undefi
               } catch {
                 /* haptics unsupported */
               }
-              enqueueCheckIn(hit.text);
+              enqueueCheckIn(hit.text, "qr_scan");
             }
           } catch {
             /* frame not ready yet */
@@ -279,7 +280,7 @@ export default function AdminCheckIn({ eventId = undefined, onCheckedIn = undefi
     e.preventDefault();
     const value = manual.trim();
     if (!value) return;
-    enqueueCheckIn(value);
+    enqueueCheckIn(value, "manual_entry");
     setManual("");
   };
 
@@ -382,6 +383,7 @@ export default function AdminCheckIn({ eventId = undefined, onCheckedIn = undefi
                       {h.registration?.guest_name || h.registration?.guest_email || h.registration?.registration_number || "Unknown"}
                     </span>
                     <span className="font-mono text-xs text-muted-foreground">{h.registration?.registration_number}</span>
+                    <span className="text-xs text-muted-foreground">{CHECKIN_METHOD_LABELS[h.method]}</span>
                     <span className="text-xs text-muted-foreground">{h.already ? "already in" : "checked in"}</span>
                   </li>
                 ))}
