@@ -317,7 +317,7 @@ export default function AdminCheckIn({ eventId = undefined, onCheckedIn = undefi
                 <div className="relative aspect-[16/9] w-full overflow-hidden rounded-xl bg-black">
                   <video ref={videoRef} muted playsInline className="h-full w-full object-cover" />
                   <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                    <div className="h-32 w-32 rounded-2xl border-2 border-white/80 bg-white/10" />
+                    <div className="h-36 w-36 rounded-2xl border-2 border-dashed border-white/80 bg-white/10" />
                   </div>
                   <button
                     type="button"
