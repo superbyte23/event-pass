@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { connectDb } from '../db/index.js';
 import { MODELS, Event, Registration, serialize } from '../db/models.js';
+import { recordCheckInLog } from './checkin-log.js';
 import { invalidateEventCache } from './cache.js';
 import { notifyTicketCreated } from './mailer.js';
 import { isAdmin, requireAdmin, requireUser } from './session.js';
@@ -107,6 +108,7 @@ async function assertRegistrationCreate(data, user, isImport = false) {
   const out = { ...data };
   delete out.checked_in_at;
   delete out.checked_in_by;
+  delete out.check_in_method;
   if (out.user_id === '') out.user_id = null;
 
   if (isImport && !isAdmin(user)) throw new ApiError(403, 'Import mode requires admin.');
@@ -377,8 +379,11 @@ function escapeRegExp(s) {
 // Admin-only check-in by the secure QR token embedded in a guest's ticket.
 // Idempotent: an already-checked-in registration is returned as-is with
 // `already: true` instead of erroring, so the scanner keeps working at the door.
-export async function checkInRegistration(token, user, eventId) {
+const CHECKIN_METHODS = new Set(['qr_scan', 'manual_entry']);
+
+export async function checkInRegistration(token, user, eventId, method = 'qr_scan') {
   requireAdmin(user);
+  if (!CHECKIN_METHODS.has(method)) throw new ApiError(400, 'Invalid check-in method.');
   const value = String(token || '').trim();
   if (!value) throw new ApiError(400, 'Please provide a ticket code.');
   await connectDb();
@@ -398,15 +403,32 @@ export async function checkInRegistration(token, user, eventId) {
   if (serialized.status === 'cancelled') {
     throw new ApiError(409, 'This registration was cancelled.');
   }
+  const checkInUpdate = {
+    status: 'checked_in',
+    checked_in_at: new Date().toISOString(),
+    checked_in_by: user.id,
+    check_in_method: method,
+  };
   if (serialized.status === 'checked_in') {
+    await recordCheckInLog({
+      eventId: reg.event_id,
+      registration: serialized,
+      method,
+      already: true,
+      adminId: user.id,
+    });
     return { registration: serialized, already: true };
   }
-  const doc = await Registration.findByIdAndUpdate(
-    reg._id,
-    { status: 'checked_in', checked_in_at: new Date().toISOString(), checked_in_by: user.id },
-    { new: true },
-  ).lean();
-  return { registration: serialize(doc), already: false };
+  const doc = await Registration.findByIdAndUpdate(reg._id, checkInUpdate, { new: true }).lean();
+  const checkedIn = serialize(doc);
+  await recordCheckInLog({
+    eventId: checkedIn.event_id,
+    registration: checkedIn,
+    method,
+    already: false,
+    adminId: user.id,
+  });
+  return { registration: checkedIn, already: false };
 }
 
 export async function createEntity(entity, data, user) {
@@ -518,6 +540,7 @@ export async function updateEntity(entity, id, data, user) {
   const model = modelFor(entity);
   requireAdmin(user);
   const payload = sanitize(model, data);
+  delete payload.check_in_method;
   if (Object.keys(payload).length === 0) throw new ApiError(400, 'Nothing to update.');
   if (
     entity === 'Registration' &&
@@ -537,12 +560,31 @@ export async function updateEntity(entity, id, data, user) {
     }
   }
 
+  let logManualCheckIn = false;
+  if (entity === 'Registration' && payload.status === 'checked_in') {
+    const existing = await model.findById(id).lean();
+    if (!existing) throw new ApiError(404, `${entity} not found.`);
+    if (existing.status !== 'checked_in') {
+      payload.check_in_method = 'manual_button';
+      logManualCheckIn = true;
+    }
+  }
+
   try {
     const doc = await model.findByIdAndUpdate(id, payload, {
       new: true,
       runValidators: true,
     });
     if (!doc) throw new ApiError(404, `${entity} not found.`);
+    if (logManualCheckIn) {
+      await recordCheckInLog({
+        eventId: doc.event_id,
+        registration: serialize(doc),
+        method: 'manual_button',
+        already: false,
+        adminId: user.id,
+      });
+    }
     if (entity === 'Event') await invalidateEventCache();
     return serialize(doc);
   } catch (error) {
